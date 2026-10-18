@@ -70,7 +70,38 @@ const odd = mkCourse("单周课", [[1, 3, 4]], { weeks: ["1", "7", "9"] });
 const oddTasks = reminder.buildSubscribeTasks([odd], timetable, { days: 30, now });
 check("单周课只排 weeks 里的周（10/19 第7周、11/2 第9周）", oddTasks.map((t) => t.timeText), ["10/19 10:10", "11/2 10:10"]);
 
-console.log("\n=== 场景 5：边界 ===");
+console.log("\n=== 场景 5：1 分钟提前量 ===");
+const oneMin = reminder.buildSubscribeTasks([math], timetable, {
+  leadMinutes: 1,
+  now: new Date(2026, 9, 19, 8, 0),
+});
+check("发送时间提前 1 分钟", oneMin[0].sendAt, new Date(2026, 9, 19, 8, 19).getTime());
+const tooLate = reminder.buildSubscribeTasks([math], timetable, {
+  leadMinutes: 1,
+  now: new Date(2026, 9, 19, 8, 19, 40),
+});
+check("到点 40 秒后仍补排（宽限 2 分钟）", tooLate[0].timeText, "10/19 08:20");
+const stale = reminder.buildSubscribeTasks([math], timetable, {
+  leadMinutes: 1,
+  now: new Date(2026, 9, 19, 8, 22, 40),
+});
+check("到点 3 分钟后不再补排", stale[0].timeText, "10/26 08:20");
+
+console.log("\n=== 场景 6：15:55 订阅、17:30 的课提前 95 分钟 ===");
+const evening = mkCourse("晚课", [[7, 9, 10]]);
+const grace = reminder.buildSubscribeTasks([evening], timetable, {
+  leadMinutes: 95,
+  now: new Date(2026, 9, 18, 15, 55, 30),
+});
+check("补排到 10/18 17:30 那节", grace[0] && grace[0].timeText, "10/18 17:30");
+check("补排任务的发送时刻", grace[0] && new Date(grace[0].sendAt).getTime(), new Date(2026, 9, 18, 15, 55).getTime());
+const eveningStale = reminder.buildSubscribeTasks([evening], timetable, {
+  leadMinutes: 95,
+  now: new Date(2026, 9, 18, 15, 58, 30),
+});
+check("超过宽限后跳到下一周", eveningStale[0].timeText, "10/25 17:30");
+
+console.log("\n=== 场景 7：边界 ===");
 check("没有开学日期", reminder.buildSubscribeTasks([math], { startDate: "" }, { now }), []);
 check("没有课程", reminder.buildSubscribeTasks([], timetable, { now }), []);
 

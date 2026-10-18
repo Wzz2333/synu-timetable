@@ -480,6 +480,52 @@ async function ensureReminderCollection() {
   }
 }
 
+// 清洗客户端传来的排期任务
+function normalizeIncomingTasks(tasks, now) {
+  return (Array.isArray(tasks) ? tasks : [])
+    .slice(0, 50)
+    .map((t) => ({
+      sendAt: parseInt(t.sendAt, 10),
+      startAt: parseInt(t.startAt, 10),
+      courseName: clipText(t.courseName, 40),
+      room: clipText(t.room, 40),
+      teacher: clipText(t.teacher, 40),
+      timeText: clipText(t.timeText, 40),
+      timeFullText: clipText(t.timeFullText, 40),
+      remark: clipText(t.remark, 40),
+    }))
+    // 宽限 2 分钟：刚好在提醒时刻订阅也能补排，避免“到点了却没排上”
+    .filter((t) => t.sendAt > now - 2 * 60 * 1000 && t.courseName);
+}
+
+// 删掉旧的待发送任务，写入最新快照
+async function replacePendingTasks(openid, safeTasks) {
+  await db
+    .collection(REMINDER_COLLECTION)
+    .where({ type: "task", _openid: openid, status: "pending" })
+    .remove();
+  for (let i = 0; i < safeTasks.length; i += 20) {
+    const slice = safeTasks.slice(i, i + 20);
+    await Promise.all(
+      slice.map((task) =>
+        db.collection(REMINDER_COLLECTION).add({
+          data: Object.assign({}, task, {
+            type: "task",
+            _openid: openid,
+            status: "pending",
+            createTime: db.serverDate(),
+          }),
+        })
+      )
+    );
+  }
+}
+
+function nextSendAtOf(safeTasks) {
+  if (!safeTasks || safeTasks.length === 0) return null;
+  return safeTasks.reduce((min, t) => (t.sendAt < min ? t.sendAt : min), safeTasks[0].sendAt);
+}
+
 // 客户端授权成功后调用：可发送次数 +1，并用最新课表快照重建排期
 const subscribeReminder = async (event, retried) => {
   try {
@@ -491,19 +537,7 @@ const subscribeReminder = async (event, retried) => {
     if (!timetableId) return { success: false, errMsg: "缺少 timetableId" };
 
     const now = Date.now();
-    const safeTasks = (Array.isArray(tasks) ? tasks : [])
-      .slice(0, 50)
-      .map((t) => ({
-        sendAt: parseInt(t.sendAt, 10),
-        startAt: parseInt(t.startAt, 10),
-        courseName: clipText(t.courseName, 40),
-        room: clipText(t.room, 40),
-        teacher: clipText(t.teacher, 40),
-        timeText: clipText(t.timeText, 40),
-        timeFullText: clipText(t.timeFullText, 40),
-        remark: clipText(t.remark, 40),
-      }))
-      .filter((t) => t.sendAt > now && t.courseName);
+    const safeTasks = normalizeIncomingTasks(tasks, now);
 
     // 次数 +1（有上限，避免一次刷太多）
     const quotaRes = await db.collection(REMINDER_COLLECTION).where({ type: "quota", _openid: openid }).get();
@@ -529,27 +563,9 @@ const subscribeReminder = async (event, retried) => {
     }
 
     // 重建排期：删掉旧的待发送任务，写入最新快照
-    await db
-      .collection(REMINDER_COLLECTION)
-      .where({ type: "task", _openid: openid, status: "pending" })
-      .remove();
-    for (let i = 0; i < safeTasks.length; i += 20) {
-      const slice = safeTasks.slice(i, i + 20);
-      await Promise.all(
-        slice.map((task) =>
-          db.collection(REMINDER_COLLECTION).add({
-            data: Object.assign({}, task, {
-              type: "task",
-              _openid: openid,
-              status: "pending",
-              createTime: db.serverDate(),
-            }),
-          })
-        )
-      );
-    }
+    await replacePendingTasks(openid, safeTasks);
 
-    return { success: true, data: { quota, pending: safeTasks.length } };
+    return { success: true, data: { quota, pending: safeTasks.length, nextSendAt: nextSendAtOf(safeTasks) } };
   } catch (e) {
     console.error("subscribeReminder 失败", e);
     if (isCollectionMissing(e) && !retried) {
@@ -559,6 +575,53 @@ const subscribeReminder = async (event, retried) => {
     }
     if (isCollectionMissing(e)) {
       return { success: false, errMsg: "请先在云开发控制台创建 class_reminders 集合" };
+    }
+    return { success: false, errMsg: errText(e) };
+  }
+};
+
+// 只重建排期、不改变可发送次数（改提前量 / 改课表后调用）
+const rescheduleReminder = async (event) => {
+  try {
+    const openid = cloud.getWXContext().OPENID;
+    if (!openid) return { success: false, errMsg: "未登录或会话失效" };
+    const { timetableId, remindMinutes, tasks } = event.data || {};
+    const safeTasks = normalizeIncomingTasks(tasks, Date.now());
+
+    let quotaDoc = null;
+    try {
+      const quotaRes = await db.collection(REMINDER_COLLECTION).where({ type: "quota", _openid: openid }).get();
+      quotaDoc = quotaRes.data[0];
+    } catch (e) {
+      if (isCollectionMissing(e)) {
+        return { success: true, data: { quota: 0, pending: 0, nextSendAt: null, note: "还没订阅过" } };
+      }
+      throw e;
+    }
+
+    if (quotaDoc && timetableId) {
+      await db.collection(REMINDER_COLLECTION).doc(quotaDoc._id).update({
+        data: {
+          remindMinutes: parseInt(remindMinutes, 10) || 10,
+          timetableId,
+          updateTime: db.serverDate(),
+        },
+      });
+    }
+
+    await replacePendingTasks(openid, safeTasks);
+    return {
+      success: true,
+      data: {
+        quota: quotaDoc ? quotaDoc.count || 0 : 0,
+        pending: safeTasks.length,
+        nextSendAt: nextSendAtOf(safeTasks),
+      },
+    };
+  } catch (e) {
+    console.error("rescheduleReminder 失败", e);
+    if (isCollectionMissing(e)) {
+      return { success: true, data: { quota: 0, pending: 0, nextSendAt: null } };
     }
     return { success: false, errMsg: errText(e) };
   }
@@ -579,19 +642,80 @@ const getReminderStatus = async () => {
       .orderBy("sendAt", "desc")
       .limit(1)
       .get();
+    const nextRes = await db
+      .collection(REMINDER_COLLECTION)
+      .where({ type: "task", _openid: openid, status: "pending" })
+      .orderBy("sendAt", "asc")
+      .limit(1)
+      .get();
     return {
       success: true,
       data: {
         quota: quotaDoc ? quotaDoc.count || 0 : 0,
         pending: (pendingRes && pendingRes.total) || 0,
         lastSentAt: sentRes.data[0] ? sentRes.data[0].sendAt : null,
+        nextSendAt: nextRes.data[0] ? nextRes.data[0].sendAt : null,
       },
     };
   } catch (e) {
     if (isCollectionMissing(e)) {
       // 还没订阅过、集合都没建：当作空状态，不打扰用户
-      return { success: true, data: { quota: 0, pending: 0, lastSentAt: null } };
+      return { success: true, data: { quota: 0, pending: 0, lastSentAt: null, nextSendAt: null } };
     }
+    return { success: false, errMsg: errText(e) };
+  }
+};
+
+// 立即发一条测试提醒（消耗一次授权），用于验证模板字段与权限是否配好
+const sendTestReminder = async (event) => {
+  try {
+    const openid = cloud.getWXContext().OPENID;
+    if (!openid) return { success: false, errMsg: "未登录或会话失效" };
+
+    let quotaDoc = null;
+    try {
+      const quotaRes = await db.collection(REMINDER_COLLECTION).where({ type: "quota", _openid: openid }).get();
+      quotaDoc = quotaRes.data[0];
+    } catch (e) {
+      if (isCollectionMissing(e)) {
+        return { success: false, errMsg: "还没有订阅记录，请先点「订阅一次提醒」" };
+      }
+      throw e;
+    }
+    const count = quotaDoc ? quotaDoc.count || 0 : 0;
+    if (!SUBSCRIBE_LONG_TERM && count <= 0) {
+      return { success: false, errMsg: "没有可用的订阅授权，请先点「订阅一次提醒」" };
+    }
+
+    const timeText = clipText((event.data && event.data.timeFullText) || "", 20) || "现在";
+    const message = buildReminderMessage({
+      courseName: "测试课程",
+      teacher: "测试老师",
+      room: "测试地点",
+      remark: "这是一条测试提醒",
+      timeFullText: timeText,
+      timeText: timeText,
+    });
+
+    await cloud.openapi.subscribeMessage.send({
+      touser: openid,
+      templateId: SUBSCRIBE_TEMPLATE_ID,
+      page: "pages/index/index",
+      data: message,
+      miniprogramState: SUBSCRIBE_MINIPROGRAM_STATE,
+    });
+
+    let remaining = count;
+    if (!SUBSCRIBE_LONG_TERM && quotaDoc) {
+      remaining = Math.max(0, count - 1);
+      await db.collection(REMINDER_COLLECTION).doc(quotaDoc._id).update({
+        data: { count: remaining, updateTime: db.serverDate() },
+      });
+    }
+
+    return { success: true, data: { remaining } };
+  } catch (e) {
+    console.error("sendTestReminder 失败", e);
     return { success: false, errMsg: errText(e) };
   }
 };
@@ -732,6 +856,10 @@ exports.main = async (event, context) => {
       return await subscribeReminder(event);
     case "getReminderStatus":
       return await getReminderStatus();
+    case "sendTestReminder":
+      return await sendTestReminder(event);
+    case "rescheduleReminder":
+      return await rescheduleReminder(event);
     case "remindTick":
       // 手动触发一次（调试用：先手动排期，再调它就能立刻发）
       return await remindTick();

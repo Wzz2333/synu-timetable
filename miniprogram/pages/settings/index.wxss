@@ -159,11 +159,44 @@
   color: #333;
 }
 
-.remind-value {
-  padding: 10rpx 24rpx;
+.remind-input-wrap {
+  display: flex;
+  align-items: center;
+}
+
+.remind-input {
+  width: 120rpx;
+  padding: 8rpx 16rpx;
+  text-align: center;
   background: #f5f5f5;
   border-radius: 10rpx;
-  font-size: 26rpx;
+  font-size: 28rpx;
+  color: #1989fa;
+}
+
+.remind-unit {
+  margin-left: 10rpx;
+  font-size: 24rpx;
+  color: #666;
+}
+
+.remind-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+  margin-bottom: 20rpx;
+}
+
+.preset-chip {
+  padding: 8rpx 24rpx;
+  background: #f5f5f5;
+  border-radius: 24rpx;
+  font-size: 24rpx;
+  color: #555;
+}
+
+.ghost-btn {
+  background: rgba(25, 137, 250, 0.1);
   color: #1989fa;
 }
 
@@ -179,4 +212,10 @@
   font-size: 22rpx;
   color: #999;
   margin-bottom: 16rpx;
+}
+
+.remind-warn {
+  margin-bottom: 16rpx;
+  font-size: 22rpx;
+  color: #e6a23c;
 }

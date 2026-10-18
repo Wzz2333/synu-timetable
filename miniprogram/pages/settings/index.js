@@ -3,6 +3,38 @@ const app = getApp();
 const classReminder = require("../../utils/classReminder");
 const subscribeConfig = require("../../config/subscribe");
 
+function pad2(n) {
+  return n < 10 ? "0" + n : "" + n;
+}
+
+function formatDateTimeText(date) {
+  return (
+    date.getFullYear() +
+    "年" +
+    (date.getMonth() + 1) +
+    "月" +
+    date.getDate() +
+    "日 " +
+    pad2(date.getHours()) +
+    ":" +
+    pad2(date.getMinutes())
+  );
+}
+
+function formatShortDateTime(timestamp) {
+  const date = new Date(timestamp);
+  return (
+    date.getMonth() +
+    1 +
+    "/" +
+    date.getDate() +
+    " " +
+    pad2(date.getHours()) +
+    ":" +
+    pad2(date.getMinutes())
+  );
+}
+
 Page({
   data: {
     theme: "light",
@@ -30,14 +62,15 @@ Page({
     ],
     // 上课提醒
     remindMinutes: classReminder.DEFAULT_LEAD_MINUTES,
-    remindValues: classReminder.REMIND_OPTIONS,
-    remindOptions: classReminder.REMIND_OPTIONS.map((m) => m + " 分钟"),
-    remindIndex: classReminder.REMIND_OPTIONS.indexOf(classReminder.DEFAULT_LEAD_MINUTES),
+    remindOptions: classReminder.REMIND_OPTIONS,
+    remindMin: classReminder.MIN_LEAD_MINUTES,
+    remindMax: classReminder.MAX_LEAD_MINUTES,
     syncing: false,
     // 微信服务通知（订阅消息）
     reminderQuota: 0,
     reminderPending: 0,
     reminderStatusText: "",
+    reminderWarnText: "",
     reminderStatusLoading: false,
   },
 
@@ -60,19 +93,90 @@ Page({
   },
 
   loadRemindSettings() {
-    const saved = parseInt(wx.getStorageSync("remindMinutes"), 10);
-    const idx = this.data.remindValues.indexOf(saved);
-    this.setData({
-      remindMinutes: idx >= 0 ? saved : classReminder.DEFAULT_LEAD_MINUTES,
-      remindIndex: idx >= 0 ? idx : this.data.remindValues.indexOf(classReminder.DEFAULT_LEAD_MINUTES),
-    });
+    const minutes = classReminder.clampLeadMinutes(wx.getStorageSync("remindMinutes"));
+    this.setData({ remindMinutes: minutes });
   },
 
-  onRemindChange(e) {
-    const idx = parseInt(e.detail.value, 10) || 0;
-    const minutes = this.data.remindValues[idx];
+  onRemindInput(e) {
+    // 输入过程中先更新显示，失焦时再夹到合法范围
+    this.setData({ remindMinutes: e.detail.value });
+  },
+
+  onRemindBlur(e) {
+    const minutes = classReminder.clampLeadMinutes(e.detail.value, this.data.remindMinutes);
     wx.setStorageSync("remindMinutes", minutes);
-    this.setData({ remindIndex: idx, remindMinutes: minutes });
+    this.setData({ remindMinutes: minutes });
+    this.maybeRefreshSchedule();
+  },
+
+  useRemindPreset(e) {
+    const minutes = classReminder.clampLeadMinutes(e.currentTarget.dataset.minutes);
+    wx.setStorageSync("remindMinutes", minutes);
+    this.setData({ remindMinutes: minutes });
+    this.maybeRefreshSchedule();
+  },
+
+  // 已经订阅过时，改提前量就自动重建排期，不需要再点订阅
+  maybeRefreshSchedule() {
+    if (this.data.reminderQuota > 0 || this.data.reminderPending > 0) {
+      this.refreshReminderSchedule({ silent: true });
+    }
+  },
+
+  // 重建排期（不消耗授权）：改提前量 / 改课表后调用
+  refreshReminderSchedule(options) {
+    const silent = !!(options && options.silent);
+    if (this._refreshingSchedule) return;
+    this._refreshingSchedule = true;
+    const leadMinutes = classReminder.clampLeadMinutes(this.data.remindMinutes);
+    if (!silent) wx.showLoading({ title: "刷新排期", mask: true });
+    this.loadActiveSchedule()
+      .then(({ timetable, courses }) => {
+        const tasks = classReminder.buildSubscribeTasks(courses, timetable, {
+          leadMinutes,
+          days: subscribeConfig.SCHEDULE_DAYS,
+          maxTasks: subscribeConfig.MAX_TASKS,
+        });
+        return wx.cloud.callFunction({
+          name: "quickstartFunctions",
+          data: {
+            type: "rescheduleReminder",
+            data: { timetableId: timetable._id, remindMinutes: leadMinutes, tasks },
+          },
+        });
+      })
+      .then((res) => {
+        this._refreshingSchedule = false;
+        if (!silent) wx.hideLoading();
+        const result = res && res.result;
+        if (result && result.success) {
+          if (!silent) {
+            const pending = (result.data && result.data.pending) || 0;
+            wx.showToast({
+              title: pending > 0 ? "已刷新，排期 " + pending + " 条" : "没有可排期的课",
+              icon: "none",
+            });
+          }
+          this.loadReminderStatus();
+        } else if (!silent) {
+          wx.showModal({
+            title: "刷新失败",
+            content: (result && result.errMsg) || "请稍后重试",
+            showCancel: false,
+          });
+        }
+      })
+      .catch((err) => {
+        this._refreshingSchedule = false;
+        if (!silent) {
+          wx.hideLoading();
+          wx.showModal({
+            title: "刷新失败",
+            content: (err && err.message) || "读取课表失败",
+            showCancel: false,
+          });
+        }
+      });
   },
 
   // 读取当前激活课表 + 课程（写入日历用）
@@ -103,6 +207,7 @@ Page({
   // 一键写入手机日历（系统级提醒）
   syncToCalendar() {
     if (this.data.syncing) return;
+    const leadMinutes = classReminder.clampLeadMinutes(this.data.remindMinutes);
     if (typeof wx.addPhoneCalendar !== "function" && typeof wx.addPhoneRepeatCalendar !== "function") {
       wx.showModal({
         title: "无法写入日历",
@@ -117,7 +222,7 @@ Page({
       .then(({ timetable, courses }) => {
         wx.hideLoading();
         const events = classReminder.buildCalendarEvents(courses, timetable, {
-          leadMinutes: this.data.remindMinutes,
+          leadMinutes,
         });
         if (events.length === 0) {
           this.setData({ syncing: false });
@@ -129,7 +234,7 @@ Page({
           title: "同步到手机日历",
           content:
             "将写入 " + events.length + " 条日历事件（其中 " + repeatCount + " 条按周重复），每节课提前 " +
-            this.data.remindMinutes + " 分钟提醒。继续吗？",
+            leadMinutes + " 分钟提醒。继续吗？",
           confirmText: "写入",
           cancelText: "取消",
           success: (res) => {
@@ -226,11 +331,19 @@ Page({
       .then((res) => {
         const data = (res.result && res.result.data) || {};
         const quota = data.quota || 0;
+        const pending = data.pending || 0;
+        const parts = [quota > 0 ? "剩余 " + quota + " 次" : "剩余 0 次"];
+        if (pending > 0) parts.push("待发 " + pending + " 条");
+        if (data.nextSendAt) parts.push("下一条 " + formatShortDateTime(data.nextSendAt));
         this.setData({
           reminderStatusLoading: false,
           reminderQuota: quota,
-          reminderPending: data.pending || 0,
-          reminderStatusText: quota > 0 ? "剩余 " + quota + " 次可发送" : "还没有可发送次数",
+          reminderPending: pending,
+          reminderStatusText: parts.join(" · "),
+          reminderWarnText:
+            quota <= 0 && pending > 0
+              ? "次数不够，到点不会发送；点「订阅一次提醒」补 1 次授权"
+              : "",
         });
       })
       .catch((err) => {
@@ -238,6 +351,50 @@ Page({
         this.setData({
           reminderStatusLoading: false,
           reminderStatusText: "状态读取失败（云函数可能还没重新部署）",
+          reminderWarnText: "",
+        });
+      });
+  },
+
+  // 立即发一条测试提醒（消耗 1 次授权），用来验证模板字段是否配好
+  sendTestReminder() {
+    if (!this.data.reminderQuota) {
+      wx.showModal({
+        title: "先订阅一次",
+        content: "测试提醒同样会消耗一次订阅授权，请先点上面的「订阅一次提醒」。",
+        showCancel: false,
+      });
+      return;
+    }
+    wx.showLoading({ title: "发送中", mask: true });
+    wx.cloud
+      .callFunction({
+        name: "quickstartFunctions",
+        data: {
+          type: "sendTestReminder",
+          data: { timeFullText: formatDateTimeText(new Date()) },
+        },
+      })
+      .then((res) => {
+        wx.hideLoading();
+        const result = res && res.result;
+        if (result && result.success) {
+          wx.showToast({ title: "已发送，去看微信通知", icon: "none" });
+          this.loadReminderStatus();
+        } else {
+          wx.showModal({
+            title: "发送失败",
+            content: (result && result.errMsg) || "请查看云函数日志",
+            showCancel: false,
+          });
+        }
+      })
+      .catch((err) => {
+        wx.hideLoading();
+        wx.showModal({
+          title: "发送失败",
+          content: (err && err.message) || "网络错误",
+          showCancel: false,
         });
       });
   },
@@ -284,11 +441,12 @@ Page({
 
   // 授权成功后：生成未来 30 天的排期，交给云函数保存
   saveReminderSubscription() {
+    const leadMinutes = classReminder.clampLeadMinutes(this.data.remindMinutes);
     wx.showLoading({ title: "排期中", mask: true });
     this.loadActiveSchedule()
       .then(({ timetable, courses }) => {
         const tasks = classReminder.buildSubscribeTasks(courses, timetable, {
-          leadMinutes: this.data.remindMinutes,
+          leadMinutes,
           days: subscribeConfig.SCHEDULE_DAYS,
           maxTasks: subscribeConfig.MAX_TASKS,
         });
@@ -298,7 +456,7 @@ Page({
             type: "subscribeReminder",
             data: {
               timetableId: timetable._id,
-              remindMinutes: this.data.remindMinutes,
+              remindMinutes: leadMinutes,
               tasks,
             },
           },

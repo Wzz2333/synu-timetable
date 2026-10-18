@@ -70,10 +70,15 @@
     <view class="theme-hint">把本学期课程写进手机日历，上课前按下面的提前量响铃，不依赖网络。</view>
     <view class="remind-row">
       <text class="remind-label">提前提醒</text>
-      <picker mode="selector" range="{{remindOptions}}" value="{{remindIndex}}" bindchange="onRemindChange">
-        <view class="remind-value">{{remindOptions[remindIndex]}}</view>
-      </picker>
+      <view class="remind-input-wrap">
+        <input class="remind-input" type="number" value="{{remindMinutes}}" bindinput="onRemindInput" bindblur="onRemindBlur" />
+        <text class="remind-unit">分钟前</text>
+      </view>
     </view>
+    <view class="remind-presets">
+      <view class="preset-chip" wx:for="{{remindOptions}}" wx:key="*this" data-minutes="{{item}}" bindtap="useRemindPreset">{{item}}</view>
+    </view>
+    <view class="theme-hint">可填 {{remindMin}}~{{remindMax}} 分钟。测试时设 1 分钟，配合「立即发一条测试提醒」马上能看到效果。</view>
     <button class="setting-btn" bindtap="syncToCalendar" disabled="{{syncing}}">同步到手机日历</button>
     <view class="theme-hint">连续周次会生成“每周重复”事件；单周课拆成每次一条。改动课表后建议重新同步。</view>
   </view>
@@ -82,9 +87,11 @@
     <view class="section-title">微信服务通知</view>
     <view class="theme-hint">微信服务通知是「一次授权一条」：点一次订阅，未来 30 天内到点会收到一条。首次授权时勾选「总是保持以上选择」，之后每点一次直接记 1 次、不再弹窗；多点几次就能攒着。</view>
     <view class="remind-status">{{reminderStatusLoading ? '读取中…' : reminderStatusText}}</view>
-    <view class="remind-status-sub" wx:if="{{reminderPending > 0}}">已排期 {{reminderPending}} 条待发送</view>
+    <view class="remind-warn" wx:if="{{reminderWarnText}}">{{reminderWarnText}}</view>
     <button class="setting-btn" bindtap="subscribeReminder">订阅一次提醒</button>
-    <view class="theme-hint">首次订阅时云函数会自动创建 class_reminders 集合；若提示失败，先确认云函数已重新部署。</view>
+    <button class="setting-btn ghost-btn" bindtap="sendTestReminder">立即发一条测试提醒</button>
+    <button class="setting-btn ghost-btn" bindtap="refreshReminderSchedule">刷新排期（不消耗授权）</button>
+    <view class="theme-hint">改完课表或提前量记得点「刷新排期」；到点自动发送依赖云函数的定时触发器（部署后右键云函数 →「上传触发器」确认一次）。</view>
   </view>
 
   <view class="section">

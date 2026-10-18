@@ -87,10 +87,18 @@ check("第 19 周被 totalWeeks 过滤", reminder.buildCalendarEvents([late], ti
 const multi = mkCourse("多时段课", [[1, 1, 2], [3, 5, 6]], { weeks: ["1", "2"] });
 check("多时段各生成事件", reminder.buildCalendarEvents([multi], timetable, {}).length, 2);
 
-console.log("\n=== 场景 7：提前量文案 ===");
+console.log("\n=== 场景 7：提前量文案与范围 ===");
 check("10 分钟", reminder.formatLead(10), "10 分钟");
 check("默认 10 分钟", reminder.DEFAULT_LEAD_MINUTES, 10);
-check("可选档位", reminder.REMIND_OPTIONS, [5, 10, 15, 20, 30]);
+check("快捷档位", reminder.REMIND_OPTIONS, [1, 5, 10, 15, 30]);
+check("最小 1 分钟", reminder.MIN_LEAD_MINUTES, 1);
+check("最大 240 分钟", reminder.MAX_LEAD_MINUTES, 240);
+check("1 分钟合法", reminder.clampLeadMinutes(1), 1);
+check("0 夹到 1", reminder.clampLeadMinutes(0), 1);
+check("负数夹到 1", reminder.clampLeadMinutes(-5), 1);
+check("超上限夹到 240", reminder.clampLeadMinutes(9999), 240);
+check("字符串数字", reminder.clampLeadMinutes("7"), 7);
+check("非数字回退默认", reminder.clampLeadMinutes("abc"), 10);
 
 console.log(`\n${failed === 0 ? "✓ ALL PASS" : "✗ FAIL (" + failed + ")"}`);
 process.exit(failed === 0 ? 0 : 1);

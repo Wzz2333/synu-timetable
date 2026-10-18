@@ -9,7 +9,16 @@ const { getActiveCourses, getCourseWeekNumbers, normalizeSlots } = require('./co
 
 const SLOT_TIMES = synu.SLOT_TIMES;
 const DEFAULT_LEAD_MINUTES = 10;
-const REMIND_OPTIONS = [5, 10, 15, 20, 30];
+// 快捷档位；提前量本身可任意填 1~240 分钟
+const REMIND_OPTIONS = [1, 5, 10, 15, 30];
+const MIN_LEAD_MINUTES = 1;
+const MAX_LEAD_MINUTES = 240;
+
+function clampLeadMinutes(value, fallback) {
+  const n = parseInt(value, 10);
+  if (isNaN(n)) return fallback || DEFAULT_LEAD_MINUTES;
+  return Math.max(MIN_LEAD_MINUTES, Math.min(MAX_LEAD_MINUTES, n));
+}
 
 function timeToMinutes(text) {
   const parts = String(text).split(':');
@@ -39,7 +48,7 @@ function formatUpcomingText(upcoming) {
  * @returns {null|{course, slot, minutesLeft, startText, endText, text}}
  */
 function getUpcomingClass(courses, week, dayIndex, now, leadMinutes) {
-  const lead = parseInt(leadMinutes, 10) > 0 ? parseInt(leadMinutes, 10) : DEFAULT_LEAD_MINUTES;
+  const lead = clampLeadMinutes(leadMinutes);
   const current = now || new Date();
   const nowMin = current.getHours() * 60 + current.getMinutes();
   const day = parseInt(dayIndex, 10);
@@ -113,7 +122,7 @@ function makeDateTime(day, hhmm) {
  */
 function buildCalendarEvents(courses, timetable, options) {
   const opts = options || {};
-  const leadMinutes = parseInt(opts.leadMinutes, 10) > 0 ? parseInt(opts.leadMinutes, 10) : DEFAULT_LEAD_MINUTES;
+  const leadMinutes = clampLeadMinutes(opts.leadMinutes);
   const startDate = dateHelper.parseDate(timetable && timetable.startDate);
   if (!startDate) return [];
   const totalWeeks = parseInt(timetable.totalWeeks, 10) || 18;
@@ -181,7 +190,7 @@ function buildSubscribeTasks(courses, timetable, options) {
   const now = opts.now || new Date();
   const nowMs = now.getTime();
   const endMs = nowMs + (parseInt(opts.days, 10) || 30) * 24 * 60 * 60 * 1000;
-  const leadMs = (parseInt(opts.leadMinutes, 10) > 0 ? parseInt(opts.leadMinutes, 10) : DEFAULT_LEAD_MINUTES) * 60 * 1000;
+  const leadMs = clampLeadMinutes(opts.leadMinutes) * 60 * 1000;
 
   const tasks = [];
   (courses || []).forEach((course) => {
@@ -196,7 +205,8 @@ function buildSubscribeTasks(courses, timetable, options) {
         if (!date) return;
         const startAt = makeDateTime(date, startTime[0]);
         const sendAt = startAt.getTime() - leadMs;
-        if (sendAt < nowMs + 30 * 1000) return; // 已经来不及提醒的跳过
+        // 宽限 2 分钟：刚好在提醒时刻点订阅（比如 17:30 的课、15:55 提醒）也能补排
+        if (sendAt < nowMs - 2 * 60 * 1000) return;
         if (sendAt > endMs) return;
         tasks.push({
           sendAt,
@@ -221,6 +231,9 @@ function buildSubscribeTasks(courses, timetable, options) {
 module.exports = {
   DEFAULT_LEAD_MINUTES,
   REMIND_OPTIONS,
+  MIN_LEAD_MINUTES,
+  MAX_LEAD_MINUTES,
+  clampLeadMinutes,
   timeToMinutes,
   formatLead,
   formatUpcomingText,
