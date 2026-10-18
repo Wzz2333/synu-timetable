@@ -80,7 +80,7 @@
 
   <view class="section">
     <view class="section-title">微信服务通知</view>
-    <view class="theme-hint">微信服务通知是「一次授权一条」：点一次订阅，未来 30 天内到点会收到一条；想连续多条就多点几次。</view>
+    <view class="theme-hint">微信服务通知是「一次授权一条」：点一次订阅，未来 30 天内到点会收到一条。首次授权时勾选「总是保持以上选择」，之后每点一次直接记 1 次、不再弹窗；多点几次就能攒着。</view>
     <view class="remind-status">{{reminderStatusLoading ? '读取中…' : reminderStatusText}}</view>
     <view class="remind-status-sub" wx:if="{{reminderPending > 0}}">已排期 {{reminderPending}} 条待发送</view>
     <button class="setting-btn" bindtap="subscribeReminder">订阅一次提醒</button>

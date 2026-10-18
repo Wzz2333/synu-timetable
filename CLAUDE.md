@@ -171,7 +171,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 纯函数在 `utils/classReminder.js`：`getUpcomingClass` / `buildCalendarEvents`，可 Node 测试
 
 ### 10. 微信服务通知（订阅消息）
-- 模板 ID 在 `config/subscribe.js`；云函数里的模板字段映射是 `cloudfunctions/quickstartFunctions/index.js` 顶部的 `SUBSCRIBE_FIELDS`（需与公众平台模板一致）
+- 模板 ID 在 `config/subscribe.js`；模板是「日程提醒」（编号 571），字段映射在 `cloudfunctions/quickstartFunctions/index.js` 顶部的 `SUBSCRIBE_FIELDS`：`thing27` 课程名称 / `thing15` 教师 / `thing10` 地点 / `thing2` 提醒内容 / `time6` 开始时间
 - 设置页「微信服务通知」→「订阅一次提醒」：`wx.requestSubscribeMessage` 授权 → `buildSubscribeTasks` 生成未来 30 天每次课的排期 → 云函数 `subscribeReminder` 保存并把可发送次数 +1
 - 云函数 `config.json` 带 `subscribeMessage.send` 权限和每分钟执行的定时触发器；`remindTick` 查找到点任务 → 发消息 → 扣减次数，次数用完的任务标记 `no_quota`
 - 消息点开跳首页；`SUBSCRIBE_MINIPROGRAM_STATE` 默认 `formal`（正式版），测试阶段改成 `developer` / `trial`

@@ -6,14 +6,15 @@ cloud.init({
 const db = cloud.database();
 
 // ===== 订阅消息（微信服务通知）=====
-// 模板 ID 与字段名必须和公众平台「订阅消息 → 我的模板」里的定义一致。
-// 若模板字段不是 thing1/time2/thing3/thing4，改这里的映射即可（键是字段名，值是消息内容）。
+// 模板：日程提醒（编号 571）
+// 字段名按公众平台模板详情配置：课程名称 thing27 / 教师 thing15 / 地点 thing10 / 提醒内容 thing2 / 开始时间 time6
 const SUBSCRIBE_TEMPLATE_ID = "pYTJQ7vfPxbqXX-P7UmX69E5QDa_2gaET9BrC54o1l8";
 const SUBSCRIBE_FIELDS = {
-  courseName: "thing1", // 课程名称
-  time: "time2", // 上课时间
-  room: "thing3", // 上课地点
-  remark: "thing4", // 备注
+  courseName: "thing27", // 课程名称
+  teacher: "thing15", // 教师
+  room: "thing10", // 地点
+  remark: "thing2", // 提醒内容
+  startTime: "time6", // 开始时间（time 类型，支持 2026年10月19日 08:20）
 };
 // 一次性订阅：每发一条消耗一次授权；若模板是“长期订阅”，改成 true（不扣次数）
 const SUBSCRIBE_LONG_TERM = false;
@@ -33,9 +34,10 @@ function clipText(value, max) {
 function buildReminderMessage(task) {
   const data = {};
   if (SUBSCRIBE_FIELDS.courseName) data[SUBSCRIBE_FIELDS.courseName] = { value: clipText(task.courseName, 20) };
-  if (SUBSCRIBE_FIELDS.time) data[SUBSCRIBE_FIELDS.time] = { value: clipText(task.timeFullText || task.timeText, 20) };
+  if (SUBSCRIBE_FIELDS.teacher) data[SUBSCRIBE_FIELDS.teacher] = { value: clipText(task.teacher || "未填写", 20) };
   if (SUBSCRIBE_FIELDS.room) data[SUBSCRIBE_FIELDS.room] = { value: clipText(task.room || "待定", 20) };
   if (SUBSCRIBE_FIELDS.remark) data[SUBSCRIBE_FIELDS.remark] = { value: clipText(task.remark || "记得提前到教室", 20) };
+  if (SUBSCRIBE_FIELDS.startTime) data[SUBSCRIBE_FIELDS.startTime] = { value: clipText(task.timeFullText || task.timeText, 20) };
   return data;
 }
 

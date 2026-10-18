@@ -46,7 +46,7 @@ check("首条完整时间（订阅消息 time 关键词用）", tasks[0].timeFul
 check("首条课程", tasks[0].courseName, "高等数学");
 check("首条教室", tasks[0].room, "博文202");
 check("首条教师", tasks[0].teacher, "张老师");
-check("首条备注", tasks[0].remark, "提前 10 分钟，记得带好书本");
+check("首条备注", tasks[0].remark, "还有 10 分钟上课");
 check("按时间升序", tasks[4].sendAt, new Date(2026, 10, 16, 8, 10).getTime());
 
 console.log("\n=== 场景 2：提前量 / 天数 / 上限 ===");

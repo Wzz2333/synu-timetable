@@ -207,7 +207,7 @@ function buildSubscribeTasks(courses, timetable, options) {
           timeText: dateHelper.formatMonthDay(date) + " " + startTime[0],
           timeFullText:
             date.getFullYear() + "年" + (date.getMonth() + 1) + "月" + date.getDate() + "日 " + startTime[0],
-          remark: "提前 " + Math.round(leadMs / 60000) + " 分钟，记得带好书本",
+          remark: "还有 " + Math.round(leadMs / 60000) + " 分钟上课",
         });
       });
     });
