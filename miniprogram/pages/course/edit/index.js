@@ -1,6 +1,7 @@
 // pages/course/edit/index.js
 const synu = require("../../../config/synu");
 const weekHelper = require("../../../utils/weekHelper");
+const { findConflicts, formatConflicts } = require("../../../utils/courseConflict");
 const app = getApp();
 
 Page({
@@ -24,8 +25,8 @@ Page({
     dayOptions: synu.WEEKDAY_NAMES,
     slotOptions: synu.SLOT_TIMES.map((t, i) => `第${i + 1}节 (${t[0]}-${t[1]})`),
     weekNums: ["1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18"],
-    weekTypeOptions: ["全部周", "单周", "双周"],
-    weekTypeValues: ["all", "odd", "even"],
+    weekTypeOptions: ["全部周", "单周", "双周", "自定义"],
+    weekTypeValues: ["all", "odd", "even", "custom"],
     weekTypeIndex: 0,
     buildingList: synu.BUILDINGS,
     bgImage: "",
@@ -216,12 +217,72 @@ Page({
 
   // ===== 提交 =====
   doSubmit() {
-    const { form, isEdit, courseId } = this.data;
+    const { form } = this.data;
     if (!form.name.trim()) { wx.showToast({ title: "请输入课程名称", icon: "none" }); return; }
     for (const s of form.slots) {
       if (s.startSlot >= s.endSlot) { wx.showToast({ title: "结束节次必须大于起始节次", icon: "none" }); return; }
     }
-    if (parseInt(form.startWeek) >= parseInt(form.endWeek)) { wx.showToast({ title: "起始周不能大于结束周", icon: "none" }); return; }
+    if (parseInt(form.startWeek) > parseInt(form.endWeek)) { wx.showToast({ title: "起始周不能晚于结束周", icon: "none" }); return; }
+    this.checkConflictThenSave();
+  },
+
+  // 保存前查时间冲突：同课表内“同一天 + 节次重叠 + 周次有交集”
+  checkConflictThenSave() {
+    const { form, courseId } = this.data;
+    if (!form.timetableId) {
+      this.saveCourse();
+      return;
+    }
+    this.loadExistingCourses()
+      .then((courses) => {
+        const candidate = Object.assign({}, form, { _id: courseId || undefined });
+        const conflicts = findConflicts(courses, candidate);
+        if (conflicts.length === 0) {
+          this.saveCourse();
+          return;
+        }
+        wx.showModal({
+          title: "时间冲突",
+          content: formatConflicts(conflicts) + "\n\n仍然要保存吗？",
+          confirmText: "仍然保存",
+          cancelText: "返回修改",
+          success: (res) => {
+            if (res.confirm) this.saveCourse();
+          },
+        });
+      })
+      .catch(() => {
+        wx.showModal({
+          title: "提示",
+          content: "无法读取已有课程，未做时间冲突检查。仍然保存吗？",
+          confirmText: "仍然保存",
+          cancelText: "取消",
+          success: (res) => {
+            if (res.confirm) this.saveCourse();
+          },
+        });
+      });
+  },
+
+  // 同一课表下的已有课程，加载一次后缓存
+  loadExistingCourses() {
+    if (this._existingCourses) return Promise.resolve(this._existingCourses);
+    return wx.cloud
+      .callFunction({
+        name: "quickstartFunctions",
+        data: { type: "getCourses", data: { timetableId: this.data.form.timetableId } },
+      })
+      .then((res) => {
+        if (!res.result || !res.result.success) {
+          throw new Error((res.result && res.result.errMsg) || "加载课程失败");
+        }
+        this._existingCourses = res.result.data || [];
+        return this._existingCourses;
+      });
+  },
+
+  saveCourse() {
+    const { form, isEdit, courseId } = this.data;
     wx.showLoading({ title: "保存中" });
     const type = isEdit ? "updateCourse" : "addCourse";
     const data = isEdit ? { ...form, _id: courseId } : form;

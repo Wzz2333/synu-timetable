@@ -40,7 +40,56 @@ function detectWeekType(start, end, weeks) {
   return 'custom';
 }
 
+/**
+ * 把周次数组压成可读文案
+ * 例：[1,2,3,5] → "第1-3周、第5周"；[1,3,5,7] → "第1-7周（单周）"
+ * @param {Array<number|string>} weeks
+ * @returns {string}
+ */
+function formatWeeks(weeks) {
+  if (!weeks || weeks.length === 0) return '无';
+  const sorted = Array.from(
+    new Set(
+      weeks
+        .map((w) => parseInt(w, 10))
+        .filter((n) => !isNaN(n) && n > 0)
+    )
+  ).sort((a, b) => a - b);
+  if (!sorted.length) return '无';
+
+  const first = sorted[0];
+  const last = sorted[sorted.length - 1];
+  // 连续的单周 / 双周，压缩成 "第1-17周（单周）"
+  const step = sorted.length > 1 ? sorted[1] - sorted[0] : 0;
+  const evenStep = sorted.every((w, i) => i === 0 || w - sorted[i - 1] === step);
+  if (sorted.length >= 4 && evenStep && (step === 2) && first % 2 === 1) {
+    return '第' + first + '-' + last + '周（单周）';
+  }
+  if (sorted.length >= 4 && evenStep && (step === 2) && first % 2 === 0) {
+    return '第' + first + '-' + last + '周（双周）';
+  }
+
+  const runs = [];
+  sorted.forEach((w) => {
+    const prev = runs[runs.length - 1];
+    if (prev && w === prev[1] + 1) prev[1] = w;
+    else runs.push([w, w]);
+  });
+
+  const parts = [];
+  runs.forEach(([a, b]) => {
+    if (a === b) parts.push('第' + a + '周');
+    else parts.push('第' + a + '-' + b + '周');
+  });
+
+  if (parts.length > 4) {
+    return parts.slice(0, 3).join('、') + ' 等 ' + sorted.length + ' 周';
+  }
+  return parts.join('、');
+}
+
 module.exports = {
   buildWeeks,
   detectWeekType,
+  formatWeeks,
 };
