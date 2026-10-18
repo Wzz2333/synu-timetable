@@ -233,8 +233,12 @@ Page({
           reminderStatusText: quota > 0 ? "剩余 " + quota + " 次可发送" : "还没有可发送次数",
         });
       })
-      .catch(() => {
-        this.setData({ reminderStatusLoading: false, reminderStatusText: "状态读取失败" });
+      .catch((err) => {
+        console.error("[settings] 读取服务通知状态失败", err);
+        this.setData({
+          reminderStatusLoading: false,
+          reminderStatusText: "状态读取失败（云函数可能还没重新部署）",
+        });
       });
   },
 
@@ -261,9 +265,17 @@ Page({
         }
       },
       fail: (err) => {
+        console.error("[settings] requestSubscribeMessage 失败", err);
+        const msg = (err && err.errMsg) || "请稍后重试";
+        let hint = msg;
+        if (msg.indexOf("invalid tmplId") >= 0) {
+          hint = "模板 ID 无效或不属于当前小程序，请核对公众平台里的模板 ID";
+        } else if (msg.indexOf("TAP") >= 0) {
+          hint = "订阅需要用户直接点击按钮触发，请重新点一次";
+        }
         wx.showModal({
           title: "订阅失败",
-          content: (err && err.errMsg) || "请稍后重试",
+          content: hint + "\n（" + msg + "）",
           showCancel: false,
         });
       },
@@ -294,26 +306,37 @@ Page({
       })
       .then((res) => {
         wx.hideLoading();
-        if (res.result && res.result.success) {
-          const pending = (res.result.data && res.result.data.pending) || 0;
+        const result = res && res.result;
+        if (result && result.success) {
+          const pending = (result.data && result.data.pending) || 0;
           wx.showToast({
             title: pending > 0 ? "已订阅，排期 " + pending + " 条" : "已订阅，暂无待提醒的课",
             icon: "none",
           });
           this.loadReminderStatus();
-        } else {
+        } else if (!result) {
+          // 旧版云函数还没有 subscribeReminder 分支，调用返回 undefined
           wx.showModal({
-            title: "订阅失败",
-            content: (res.result && res.result.errMsg) || "请稍后重试",
+            title: "云函数未更新",
+            content:
+              "云端还是旧版云函数，认不出 subscribeReminder。\n请右键 cloudfunctions/quickstartFunctions → 上传并部署（云端安装依赖），然后重新点订阅。",
             showCancel: false,
           });
+        } else {
+          let content = result.errMsg || "请稍后重试";
+          if (String(content).indexOf("class_reminders") >= 0) {
+            content += "\n\n在云开发控制台 → 数据库 → 新建集合 class_reminders（权限：仅创建者可读写）。";
+          }
+          console.error("[settings] 订阅失败", res);
+          wx.showModal({ title: "订阅失败", content, showCancel: false });
         }
       })
       .catch((err) => {
         wx.hideLoading();
+        console.error("[settings] 订阅流程异常", err);
         wx.showModal({
           title: "订阅失败",
-          content: (err && err.message) || "读取课表失败",
+          content: ((err && err.message) || "读取课表失败") + "\n（可查看调试器 Console 或云函数日志）",
           showCancel: false,
         });
       });

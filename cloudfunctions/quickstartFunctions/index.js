@@ -44,11 +44,17 @@ function buildReminderMessage(task) {
 // 集合没建时给出明确提示，而不是 500
 function isCollectionMissing(err) {
   const msg = String((err && (err.errMsg || err.message)) || "");
+  if (err && Number(err.errCode) === -502005) return true;
   return (
     msg.indexOf("-502005") >= 0 ||
     msg.indexOf("collection not exists") >= 0 ||
     msg.indexOf("DATABASE_COLLECTION_NOT_EXIST") >= 0
   );
+}
+
+function errText(err) {
+  if (!err) return "未知错误";
+  return String(err.errMsg || err.message || err.errCode || err);
 }
 
 // 获取openid
@@ -538,7 +544,7 @@ const subscribeReminder = async (event) => {
     if (isCollectionMissing(e)) {
       return { success: false, errMsg: "请先在云开发控制台创建 class_reminders 集合" };
     }
-    return { success: false, errMsg: e.message };
+    return { success: false, errMsg: errText(e) };
   }
 };
 
@@ -569,7 +575,7 @@ const getReminderStatus = async () => {
     if (isCollectionMissing(e)) {
       return { success: false, errMsg: "请先在云开发控制台创建 class_reminders 集合" };
     }
-    return { success: false, errMsg: e.message };
+    return { success: false, errMsg: errText(e) };
   }
 };
 
@@ -651,7 +657,7 @@ const remindTick = async () => {
       return { success: true, data: { scanned: 0, sent: 0, skipped: 0, failed: 0, note: "集合不存在" } };
     }
     console.error("remindTick 失败", e);
-    return { success: false, errMsg: e.message };
+    return { success: false, errMsg: errText(e) };
   }
 };
 
