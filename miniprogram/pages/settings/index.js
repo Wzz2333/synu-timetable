@@ -51,6 +51,8 @@ Page({
     remindOptions: classReminder.REMIND_OPTIONS,
     remindMin: classReminder.MIN_LEAD_MINUTES,
     remindMax: classReminder.MAX_LEAD_MINUTES,
+    // 课前提醒总开关（false 时不发服务通知，首页也不显示提醒条）
+    reminderEnabled: true,
     // 微信服务通知（订阅消息）
     reminderQuota: 0,
     reminderPending: 0,
@@ -79,7 +81,10 @@ Page({
 
   loadRemindSettings() {
     const minutes = classReminder.clampLeadMinutes(wx.getStorageSync("remindMinutes"));
-    this.setData({ remindMinutes: minutes });
+    this.setData({
+      remindMinutes: minutes,
+      reminderEnabled: wx.getStorageSync("reminderEnabled") !== "0",
+    });
   },
 
   onRemindInput(e) {
@@ -101,8 +106,50 @@ Page({
     this.maybeRefreshSchedule();
   },
 
+  // 课前提醒总开关：关闭后不再发服务通知，首页也不显示提醒条
+  onReminderToggle(e) {
+    const enabled = !!e.detail.value;
+    wx.setStorageSync("reminderEnabled", enabled ? "1" : "0");
+    this.setData({ reminderEnabled: enabled });
+    wx.showLoading({ title: enabled ? "正在开启" : "正在关闭", mask: true });
+    wx.cloud
+      .callFunction({
+        name: "quickstartFunctions",
+        data: { type: "setReminderEnabled", data: { enabled } },
+      })
+      .then((res) => {
+        wx.hideLoading();
+        const result = res && res.result;
+        if (!result || !result.success) {
+          wx.showModal({
+            title: "设置失败",
+            content: (result && result.errMsg) || "请稍后重试",
+            showCancel: false,
+          });
+          return;
+        }
+        if (enabled) {
+          // 重新排期，把接下来要提醒的课补上
+          this.refreshReminderSchedule({ silent: true });
+          wx.showToast({ title: "已开启课前提醒", icon: "none" });
+        } else {
+          wx.showToast({ title: "已关闭课前提醒", icon: "none" });
+        }
+        this.loadReminderStatus();
+      })
+      .catch((err) => {
+        wx.hideLoading();
+        wx.showModal({
+          title: "设置失败",
+          content: (err && err.message) || "网络异常，请稍后重试",
+          showCancel: false,
+        });
+      });
+  },
+
   // 已经订阅过时，改提前量就自动重建排期，不需要再点订阅
   maybeRefreshSchedule() {
+    if (!this.data.reminderEnabled) return;
     if (this.data.reminderQuota > 0 || this.data.reminderPending > 0) {
       this.refreshReminderSchedule({ silent: true });
     }
@@ -110,6 +157,7 @@ Page({
 
   // 重建排期（不消耗授权）：改提前量 / 改课表后调用
   refreshReminderSchedule(options) {
+    if (!this.data.reminderEnabled) return;
     const silent = !!(options && options.silent);
     if (this._refreshingSchedule) return;
     this._refreshingSchedule = true;
@@ -201,10 +249,16 @@ Page({
         const parts = [quota > 0 ? "剩余 " + quota + " 次" : "剩余 0 次"];
         if (pending > 0) parts.push("待发 " + pending + " 条");
         if (data.nextSendAt) parts.push("下一条 " + formatShortDateTime(data.nextSendAt));
+        // 以服务端开关为准，避免多端不一致
+        const enabled = data.enabled !== false;
+        if (enabled !== this.data.reminderEnabled) {
+          wx.setStorageSync("reminderEnabled", enabled ? "1" : "0");
+        }
         this.setData({
           reminderStatusLoading: false,
           reminderQuota: quota,
           reminderPending: pending,
+          reminderEnabled: enabled,
           reminderStatusText: parts.join(" · "),
           reminderWarnText:
             quota <= 0 && pending > 0

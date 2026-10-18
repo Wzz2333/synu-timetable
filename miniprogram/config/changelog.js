@@ -3,10 +3,12 @@
 // item.type：new = 新增 / improve = 优化 / remove = 移除或调整
 module.exports = [
   {
-    version: "2.0.0",
+    version: "3.0.0",
     date: "2026-10-18",
     current: true,
     items: [
+      { type: "new", text: "课前提醒支持开关：设置页可一键关闭 / 开启；关闭后不再发送微信服务通知，首页也不显示提醒条" },
+      { type: "improve", text: "关闭期间已获得的提醒次数会保留，重新开启后自动恢复排期" },
       { type: "new", text: "微信服务通知：上课前按设置的提前量收到订阅消息，提前 1~240 分钟可调" },
       { type: "new", text: "到点自动发送：云函数定时触发器每分钟检查一次，不用打开小程序也会提醒" },
       { type: "new", text: "空闲时段挖掘：按「今天 / 本周」列出连续空闲窗口，支持长时段和碎片筛选" },

@@ -146,6 +146,30 @@
 }
 
 /* 上课提醒 */
+.switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4rpx 0 16rpx;
+}
+
+.switch-info {
+  flex: 1;
+  margin-right: 24rpx;
+}
+
+.switch-title {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #333333;
+}
+
+.switch-desc {
+  margin-top: 4rpx;
+  font-size: 21rpx;
+  color: #999999;
+}
+
 .remind-row {
   display: flex;
   align-items: center;

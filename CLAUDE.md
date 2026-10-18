@@ -89,6 +89,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `subscribeReminder` | 保存订阅授权 | 可发送次数 +1，按最新课表快照重建排期（`class_reminders` 的 task 记录） |
 | `getReminderStatus` | 查询订阅状态 | 剩余可发送次数 / 待发送条数 / 最近发送时间 |
 | `rescheduleReminder` | 重建排期 | 改提前量 / 改课表后调用，不改变可发送次数 |
+| `setReminderEnabled` | 课前提醒开关 | 关闭时清空待发任务并让定时器跳过发送；开启后由客户端重建排期 |
 | `remindTick` | 发送到点提醒 | 定时触发器每分钟调用；也可手动触发调试 |
 
 > 注：`getOpenId`, `getMiniProgramCode`, `createCollection`, `selectRecord`, `updateRecord`, `insertRecord`, `deleteRecord` 为 QuickStart 模板遗留的演示接口，未被前端调用。
@@ -168,7 +169,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### 9. 上课提醒 (index + settings + classReminder)
 - 首页：上课前 N 分钟（默认 10，设置页可任意填 1~240 分钟，快捷档位 1/5/10/15/30）顶部出现「12 分钟后 · 高等数学 · 博文202」提醒条，点开课程详情；每 30 秒刷新一次
-- 设置页「提前提醒」：只配置提前量；实际提醒通过「微信服务通知（订阅消息）」下发（见第 10 节）
+- 设置页「提前提醒」：顶部有「课前提醒」总开关（存 `wx.storage.reminderEnabled`），关闭后首页不显示提醒条、服务通知也不再发送；提前量只配置提前几分钟
+- 实际提醒通过「微信服务通知（订阅消息）」下发（见第 10 节）
 - 纯函数在 `utils/classReminder.js`：`getUpcomingClass` / `buildSubscribeTasks`，可 Node 测试
 
 ### 10. 微信服务通知（订阅消息）
@@ -178,6 +180,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 消息点开跳首页；`SUBSCRIBE_MINIPROGRAM_STATE` 默认 `formal`（正式版），测试阶段改成 `developer` / `trial`
 - 一次性订阅：一次授权只能发一条，想连续多条需多次点订阅；若模板是长期订阅，把 `SUBSCRIBE_LONG_TERM` 改成 `true`
 - 改提前量会自动调用 `rescheduleReminder` 重建排期（不消耗授权）；改完课表可点「改完课表后刷新排期」手动重建。状态栏显示剩余次数 / 待发条数 / 下一条发送时间
+- 开关：设置页「课前提醒」switch → 云函数 `setReminderEnabled`；关闭时把 quota 文档的 `enabled` 置 false 并删掉该用户所有 pending 任务，`remindTick` 也会跳过 `enabled=false` 的用户（任务标记 `cancelled`）；重新打开后客户端自动重建排期，已获得的次数保留
 - 排期宽限 2 分钟：提醒时刻前后 2 分钟内的到点任务仍会补排，避免「刚好到点才订阅」导致漏提醒
 - 定时器事件兼容 `Type` / `type` / `TriggerName` 三种形态；日志里带 `[timer]` / `[remindTick]` 前缀，便于在云函数日志里排查是否真的在每分钟调用
 - 前置条件：首次订阅时云函数会自动创建 `class_reminders` 集合；若提示失败，多半是云函数没重新部署。另外要重新部署云函数并确认定时触发器已上传（右键云函数 →「上传触发器」）
@@ -195,7 +198,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **跨页传参**: 复杂对象（如 `slots[]`, `weeks[]`）通过 URL query string 传递，使用 `encodeURIComponent(JSON.stringify())`。
 - **全局状态**: `app.globalData.activeTimetableId` 维护当前课表，`app.resolveBackground()` 统一解析背景。
 - **样式单位**: 使用 `rpx` (responsive pixel)，750rpx = 屏幕宽度。
-- **本地存储键**: `hasLaunched`, `bgImage`, `bgOpacity`, `theme`, `fontColor`, `borderColor`, `profile`, `remindMinutes`
+- **本地存储键**: `hasLaunched`, `bgImage`, `bgOpacity`, `theme`, `fontColor`, `borderColor`, `profile`, `remindMinutes`, `reminderEnabled`
 
 ## 开发命令
 
@@ -229,6 +232,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - [x] 上课提醒：首页提醒条 + 微信服务通知（2026-10-18）
 - [x] 微信服务通知（订阅消息 + 每分钟定时发送）（2026-10-18）
 - [x] 更新日志页 + 首页入口（2026-10-18）
+- [x] 课前提醒开关（2026-10-18）
 
 ## 待清理的 QuickStart 遗留
 

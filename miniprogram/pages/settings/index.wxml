@@ -67,7 +67,15 @@
 
   <view class="section">
     <view class="section-title">提前提醒</view>
-    <view class="theme-hint">到点前通过微信服务通知提醒你，提前量可填 {{remindMin}}~{{remindMax}} 分钟。</view>
+    <view class="switch-row">
+      <view class="switch-info">
+        <view class="switch-title">课前提醒</view>
+        <view class="switch-desc">关闭后不再发送微信服务通知，首页也不显示提醒条</view>
+      </view>
+      <switch checked="{{reminderEnabled}}" color="#1989fa" bindchange="onReminderToggle" />
+    </view>
+    <view class="theme-hint" wx:if="{{!reminderEnabled}}">已关闭：已获得的提醒次数会保留，重新打开后会自动恢复排期。</view>
+    <view class="theme-hint" wx:else>到点前通过微信服务通知提醒你，提前量可填 {{remindMin}}~{{remindMax}} 分钟。</view>
     <view class="remind-row">
       <text class="remind-label">提前</text>
       <view class="remind-input-wrap">

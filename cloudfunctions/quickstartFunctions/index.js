@@ -655,6 +655,7 @@ const getReminderStatus = async () => {
         pending: (pendingRes && pendingRes.total) || 0,
         lastSentAt: sentRes.data[0] ? sentRes.data[0].sendAt : null,
         nextSendAt: nextRes.data[0] ? nextRes.data[0].sendAt : null,
+        enabled: quotaDoc ? quotaDoc.enabled !== false : true,
       },
     };
   } catch (e) {
@@ -667,8 +668,57 @@ const getReminderStatus = async () => {
           pending: 0,
           lastSentAt: null,
           nextSendAt: null,
+          enabled: true,
         },
       };
+    }
+    return { success: false, errMsg: errText(e) };
+  }
+};
+
+// 课前提醒总开关：关闭时清掉待发任务；打开后由客户端重建排期
+const setReminderEnabled = async (event, retried) => {
+  try {
+    const openid = cloud.getWXContext().OPENID;
+    if (!openid) return { success: false, errMsg: "未登录或会话失效" };
+    const enabled = !!(event.data && event.data.enabled);
+
+    const quotaRes = await db.collection(REMINDER_COLLECTION).where({ type: "quota", _openid: openid }).get();
+    const quotaDoc = quotaRes.data[0];
+    if (quotaDoc) {
+      await db.collection(REMINDER_COLLECTION).doc(quotaDoc._id).update({
+        data: { enabled, updateTime: db.serverDate() },
+      });
+    } else {
+      await db.collection(REMINDER_COLLECTION).add({
+        data: {
+          type: "quota",
+          _openid: openid,
+          count: 0,
+          enabled,
+          createTime: db.serverDate(),
+          updateTime: db.serverDate(),
+        },
+      });
+    }
+
+    if (!enabled) {
+      const removed = await db
+        .collection(REMINDER_COLLECTION)
+        .where({ type: "task", _openid: openid, status: "pending" })
+        .remove();
+      const count = (removed && removed.stats && removed.stats.removed) || 0;
+      return { success: true, data: { enabled, removed: count } };
+    }
+    return { success: true, data: { enabled } };
+  } catch (e) {
+    console.error("setReminderEnabled 失败", e);
+    if (isCollectionMissing(e) && !retried) {
+      await ensureReminderCollection();
+      return await setReminderEnabled(event, true);
+    }
+    if (isCollectionMissing(e)) {
+      return { success: false, errMsg: "请先在云开发控制台创建 class_reminders 集合" };
     }
     return { success: false, errMsg: errText(e) };
   }
@@ -713,9 +763,20 @@ const remindTick = async () => {
       if (!quotaCache[openid]) {
         const quotaRes = await db.collection(REMINDER_COLLECTION).where({ type: "quota", _openid: openid }).get();
         const quotaDoc = quotaRes.data[0];
-        quotaCache[openid] = { docId: quotaDoc && quotaDoc._id, count: quotaDoc ? quotaDoc.count || 0 : 0 };
+        quotaCache[openid] = {
+          docId: quotaDoc && quotaDoc._id,
+          count: quotaDoc ? quotaDoc.count || 0 : 0,
+          enabled: !(quotaDoc && quotaDoc.enabled === false),
+        };
       }
       const cache = quotaCache[openid];
+
+      // 课前提醒总开关关掉时，把待发任务标成已取消，不再发送
+      if (!cache.enabled) {
+        await mark("cancelled", "课前提醒已关闭");
+        skipped += 1;
+        continue;
+      }
 
       if (!SUBSCRIBE_LONG_TERM && cache.count <= 0) {
         await mark("no_quota", "没有可用的订阅授权");
@@ -826,6 +887,8 @@ exports.main = async (event, context) => {
       return await getReminderStatus();
     case "rescheduleReminder":
       return await rescheduleReminder(event);
+    case "setReminderEnabled":
+      return await setReminderEnabled(event);
     case "remindTick":
       // 手动触发一次（调试用：先手动排期，再调它就能立刻发）
       return await remindTick();

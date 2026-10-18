@@ -45,6 +45,8 @@ Page({
     this.loadColors();
     this.ensureTimetable();
     this.startReminderTick();
+    // 从设置页返回时，按最新的课前提醒开关刷新提醒条
+    this.refreshUpcoming();
   },
 
   onHide() {
@@ -251,6 +253,13 @@ Page({
 
   // 下一节课提醒条（课前 N 分钟，N 来自设置页，默认 10）
   refreshUpcoming() {
+    // 设置页关掉「课前提醒」后，首页也不再显示提醒条
+    if (wx.getStorageSync("reminderEnabled") === "0") {
+      if (this.data.upcomingText) {
+        this.setData({ upcomingText: "", upcomingCourse: null });
+      }
+      return;
+    }
     const { timetable, realWeek, todayIndex, inSemester } = this.data;
     if (!timetable || !this._allCourses || !inSemester) {
       if (this.data.upcomingText) {
