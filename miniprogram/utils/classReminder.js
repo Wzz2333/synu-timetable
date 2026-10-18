@@ -162,6 +162,62 @@ function buildCalendarEvents(courses, timetable, options) {
   return events;
 }
 
+/**
+ * 生成订阅消息的排期任务：未来 N 天内每一次课各一条
+ * 服务通知是“一次授权一条”，所以这里按“每次课”拆开，而不是按周重复
+ * @param {Array} courses 课表全部课程
+ * @param {Object} timetable { startDate, totalWeeks }
+ * @param {Object} [options] { leadMinutes, days, maxTasks, now }
+ */
+function buildSubscribeTasks(courses, timetable, options) {
+  const opts = Object.assign(
+    { leadMinutes: DEFAULT_LEAD_MINUTES, days: 30, maxTasks: 50, now: new Date() },
+    options || {}
+  );
+  const startDate = dateHelper.parseDate(timetable && timetable.startDate);
+  if (!startDate) return [];
+
+  const totalWeeks = parseInt(timetable.totalWeeks, 10) || 18;
+  const now = opts.now || new Date();
+  const nowMs = now.getTime();
+  const endMs = nowMs + (parseInt(opts.days, 10) || 30) * 24 * 60 * 60 * 1000;
+  const leadMs = (parseInt(opts.leadMinutes, 10) > 0 ? parseInt(opts.leadMinutes, 10) : DEFAULT_LEAD_MINUTES) * 60 * 1000;
+
+  const tasks = [];
+  (courses || []).forEach((course) => {
+    const weeks = getCourseWeekNumbers(course).filter((w) => w >= 1 && w <= totalWeeks);
+    if (!weeks.length) return;
+    normalizeSlots(course).forEach((slot) => {
+      const startTime = SLOT_TIMES[slot.startSlot - 1];
+      const endTime = SLOT_TIMES[slot.endSlot - 1];
+      if (!startTime || !endTime) return;
+      weeks.forEach((week) => {
+        const date = dateHelper.getDateOfWeekDay(startDate, week, slot.day);
+        if (!date) return;
+        const startAt = makeDateTime(date, startTime[0]);
+        const sendAt = startAt.getTime() - leadMs;
+        if (sendAt < nowMs + 30 * 1000) return; // 已经来不及提醒的跳过
+        if (sendAt > endMs) return;
+        tasks.push({
+          sendAt,
+          startAt: startAt.getTime(),
+          courseName: course.name,
+          room: course.room || "",
+          teacher: course.teacher || "",
+          timeText: dateHelper.formatMonthDay(date) + " " + startTime[0],
+          timeFullText:
+            date.getFullYear() + "年" + (date.getMonth() + 1) + "月" + date.getDate() + "日 " + startTime[0],
+          remark: "提前 " + Math.round(leadMs / 60000) + " 分钟，记得带好书本",
+        });
+      });
+    });
+  });
+
+  tasks.sort((a, b) => a.sendAt - b.sendAt);
+  const maxTasks = parseInt(opts.maxTasks, 10) || 50;
+  return tasks.slice(0, maxTasks);
+}
+
 module.exports = {
   DEFAULT_LEAD_MINUTES,
   REMIND_OPTIONS,
@@ -171,4 +227,5 @@ module.exports = {
   getUpcomingClass,
   groupWeekRuns,
   buildCalendarEvents,
+  buildSubscribeTasks,
 };

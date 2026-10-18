@@ -1,7 +1,15 @@
 {
   "permissions": {
     "openapi": [
-      "wxacode.get"
+      "wxacode.get",
+      "subscribeMessage.send"
     ]
-  }
+  },
+  "triggers": [
+    {
+      "name": "classReminderTick",
+      "type": "timer",
+      "config": "0 * * * * * *"
+    }
+  ]
 }

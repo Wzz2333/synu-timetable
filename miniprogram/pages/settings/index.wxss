@@ -166,3 +166,17 @@
   font-size: 26rpx;
   color: #1989fa;
 }
+
+/* 微信服务通知 */
+.remind-status {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #1989fa;
+  margin-bottom: 6rpx;
+}
+
+.remind-status-sub {
+  font-size: 22rpx;
+  color: #999;
+  margin-bottom: 16rpx;
+}

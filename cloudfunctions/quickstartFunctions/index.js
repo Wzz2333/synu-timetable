@@ -4,6 +4,49 @@ cloud.init({
 });
 
 const db = cloud.database();
+
+// ===== 订阅消息（微信服务通知）=====
+// 模板 ID 与字段名必须和公众平台「订阅消息 → 我的模板」里的定义一致。
+// 若模板字段不是 thing1/time2/thing3/thing4，改这里的映射即可（键是字段名，值是消息内容）。
+const SUBSCRIBE_TEMPLATE_ID = "pYTJQ7vfPxbqXX-P7UmX69E5QDa_2gaET9BrC54o1l8";
+const SUBSCRIBE_FIELDS = {
+  courseName: "thing1", // 课程名称
+  time: "time2", // 上课时间
+  room: "thing3", // 上课地点
+  remark: "thing4", // 备注
+};
+// 一次性订阅：每发一条消耗一次授权；若模板是“长期订阅”，改成 true（不扣次数）
+const SUBSCRIBE_LONG_TERM = false;
+const REMINDER_COLLECTION = "class_reminders";
+const REMINDER_MAX_QUOTA = 20;
+
+function clipText(value, max) {
+  const text = String(value === undefined || value === null ? "" : value)
+    .replace(/\s+/g, " ")
+    .trim();
+  const limit = max || 20;
+  return text.length > limit ? text.slice(0, limit - 1) + "…" : text;
+}
+
+function buildReminderMessage(task) {
+  const data = {};
+  if (SUBSCRIBE_FIELDS.courseName) data[SUBSCRIBE_FIELDS.courseName] = { value: clipText(task.courseName, 20) };
+  if (SUBSCRIBE_FIELDS.time) data[SUBSCRIBE_FIELDS.time] = { value: clipText(task.timeFullText || task.timeText, 20) };
+  if (SUBSCRIBE_FIELDS.room) data[SUBSCRIBE_FIELDS.room] = { value: clipText(task.room || "待定", 20) };
+  if (SUBSCRIBE_FIELDS.remark) data[SUBSCRIBE_FIELDS.remark] = { value: clipText(task.remark || "记得提前到教室", 20) };
+  return data;
+}
+
+// 集合没建时给出明确提示，而不是 500
+function isCollectionMissing(err) {
+  const msg = String((err && (err.errMsg || err.message)) || "");
+  return (
+    msg.indexOf("-502005") >= 0 ||
+    msg.indexOf("collection not exists") >= 0 ||
+    msg.indexOf("DATABASE_COLLECTION_NOT_EXIST") >= 0
+  );
+}
+
 // 获取openid
 const getOpenId = async () => {
   // 获取基础信息
@@ -414,6 +457,200 @@ const getProfile = async () => {
   }
 };
 
+// ========== 订阅消息（微信服务通知）==========
+
+// 客户端授权成功后调用：可发送次数 +1，并用最新课表快照重建排期
+const subscribeReminder = async (event) => {
+  try {
+    const wxContext = cloud.getWXContext();
+    const openid = wxContext.OPENID;
+    if (!openid) return { success: false, errMsg: "未登录或会话失效" };
+
+    const { timetableId, remindMinutes, tasks } = event.data || {};
+    if (!timetableId) return { success: false, errMsg: "缺少 timetableId" };
+
+    const now = Date.now();
+    const safeTasks = (Array.isArray(tasks) ? tasks : [])
+      .slice(0, 50)
+      .map((t) => ({
+        sendAt: parseInt(t.sendAt, 10),
+        startAt: parseInt(t.startAt, 10),
+        courseName: clipText(t.courseName, 40),
+        room: clipText(t.room, 40),
+        teacher: clipText(t.teacher, 40),
+        timeText: clipText(t.timeText, 40),
+        timeFullText: clipText(t.timeFullText, 40),
+        remark: clipText(t.remark, 40),
+      }))
+      .filter((t) => t.sendAt > now && t.courseName);
+
+    // 次数 +1（有上限，避免一次刷太多）
+    const quotaRes = await db.collection(REMINDER_COLLECTION).where({ type: "quota", _openid: openid }).get();
+    const quotaDoc = quotaRes.data[0];
+    const quota = Math.min(REMINDER_MAX_QUOTA, (quotaDoc ? quotaDoc.count || 0 : 0) + 1);
+    const remind = parseInt(remindMinutes, 10) || 10;
+    if (quotaDoc) {
+      await db.collection(REMINDER_COLLECTION).doc(quotaDoc._id).update({
+        data: { count: quota, remindMinutes: remind, timetableId, updateTime: db.serverDate() },
+      });
+    } else {
+      await db.collection(REMINDER_COLLECTION).add({
+        data: {
+          type: "quota",
+          _openid: openid,
+          count: quota,
+          remindMinutes: remind,
+          timetableId,
+          createTime: db.serverDate(),
+          updateTime: db.serverDate(),
+        },
+      });
+    }
+
+    // 重建排期：删掉旧的待发送任务，写入最新快照
+    await db
+      .collection(REMINDER_COLLECTION)
+      .where({ type: "task", _openid: openid, status: "pending" })
+      .remove();
+    for (let i = 0; i < safeTasks.length; i += 20) {
+      const slice = safeTasks.slice(i, i + 20);
+      await Promise.all(
+        slice.map((task) =>
+          db.collection(REMINDER_COLLECTION).add({
+            data: Object.assign({}, task, {
+              type: "task",
+              _openid: openid,
+              status: "pending",
+              createTime: db.serverDate(),
+            }),
+          })
+        )
+      );
+    }
+
+    return { success: true, data: { quota, pending: safeTasks.length } };
+  } catch (e) {
+    console.error("subscribeReminder 失败", e);
+    if (isCollectionMissing(e)) {
+      return { success: false, errMsg: "请先在云开发控制台创建 class_reminders 集合" };
+    }
+    return { success: false, errMsg: e.message };
+  }
+};
+
+const getReminderStatus = async () => {
+  try {
+    const openid = cloud.getWXContext().OPENID;
+    const quotaRes = await db.collection(REMINDER_COLLECTION).where({ type: "quota", _openid: openid }).get();
+    const quotaDoc = quotaRes.data[0];
+    const pendingRes = await db
+      .collection(REMINDER_COLLECTION)
+      .where({ type: "task", _openid: openid, status: "pending" })
+      .count();
+    const sentRes = await db
+      .collection(REMINDER_COLLECTION)
+      .where({ type: "task", _openid: openid, status: "sent" })
+      .orderBy("sendAt", "desc")
+      .limit(1)
+      .get();
+    return {
+      success: true,
+      data: {
+        quota: quotaDoc ? quotaDoc.count || 0 : 0,
+        pending: (pendingRes && pendingRes.total) || 0,
+        lastSentAt: sentRes.data[0] ? sentRes.data[0].sendAt : null,
+      },
+    };
+  } catch (e) {
+    if (isCollectionMissing(e)) {
+      return { success: false, errMsg: "请先在云开发控制台创建 class_reminders 集合" };
+    }
+    return { success: false, errMsg: e.message };
+  }
+};
+
+// 定时触发器每分钟跑一次：把到点的任务发出去
+const remindTick = async () => {
+  try {
+    const _ = db.command;
+    const now = Date.now();
+    const res = await db
+      .collection(REMINDER_COLLECTION)
+      .where({ type: "task", status: "pending", sendAt: _.lte(now) })
+      .limit(50)
+      .get();
+    const tasks = res.data || [];
+    let sent = 0;
+    let skipped = 0;
+    let failed = 0;
+    const quotaCache = {};
+
+    for (const task of tasks) {
+      const openid = task._openid;
+      const mark = async (status, error) => {
+        await db.collection(REMINDER_COLLECTION).doc(task._id).update({
+          data: {
+            status,
+            updateTime: db.serverDate(),
+            error: error ? String(error).slice(0, 200) : "",
+          },
+        });
+      };
+
+      if (!openid) {
+        await mark("invalid", "missing openid");
+        skipped += 1;
+        continue;
+      }
+
+      if (!quotaCache[openid]) {
+        const quotaRes = await db.collection(REMINDER_COLLECTION).where({ type: "quota", _openid: openid }).get();
+        const quotaDoc = quotaRes.data[0];
+        quotaCache[openid] = { docId: quotaDoc && quotaDoc._id, count: quotaDoc ? quotaDoc.count || 0 : 0 };
+      }
+      const cache = quotaCache[openid];
+
+      if (!SUBSCRIBE_LONG_TERM && cache.count <= 0) {
+        await mark("no_quota", "没有可用的订阅授权");
+        skipped += 1;
+        continue;
+      }
+
+      try {
+        await cloud.openapi.subscribeMessage.send({
+          touser: openid,
+          templateId: SUBSCRIBE_TEMPLATE_ID,
+          page: "pages/index/index",
+          data: buildReminderMessage(task),
+          miniprogramState: "formal",
+        });
+        await mark("sent");
+        if (!SUBSCRIBE_LONG_TERM) {
+          cache.count -= 1;
+          if (cache.docId) {
+            await db.collection(REMINDER_COLLECTION).doc(cache.docId).update({
+              data: { count: cache.count, updateTime: db.serverDate() },
+            });
+          }
+        }
+        sent += 1;
+      } catch (e) {
+        failed += 1;
+        console.error("发送订阅消息失败", task._id, e);
+        await mark("failed", (e && (e.errMsg || e.message)) || e);
+      }
+    }
+
+    return { success: true, data: { scanned: tasks.length, sent, skipped, failed } };
+  } catch (e) {
+    if (isCollectionMissing(e)) {
+      return { success: true, data: { scanned: 0, sent: 0, skipped: 0, failed: 0, note: "集合不存在" } };
+    }
+    console.error("remindTick 失败", e);
+    return { success: false, errMsg: e.message };
+  }
+};
+
 // const getOpenId = require('./getOpenId/index');
 // const getMiniProgramCode = require('./getMiniProgramCode/index');
 // const createCollection = require('./createCollection/index');
@@ -423,6 +660,10 @@ const getProfile = async () => {
 // const genMpQrcode = require('./genMpQrcode/index');
 // 云函数入口函数
 exports.main = async (event, context) => {
+  // 云函数定时触发器（config.json → triggers）：每分钟检查到点的上课提醒
+  if (event && event.Type === "Timer") {
+    return await remindTick();
+  }
   switch (event.type) {
     case "getOpenId":
       return await getOpenId();
@@ -460,5 +701,12 @@ exports.main = async (event, context) => {
       return await saveProfile(event);
     case "getProfile":
       return await getProfile();
+    case "subscribeReminder":
+      return await subscribeReminder(event);
+    case "getReminderStatus":
+      return await getReminderStatus();
+    case "remindTick":
+      // 手动触发一次（调试用：先手动排期，再调它就能立刻发）
+      return await remindTick();
   }
 };

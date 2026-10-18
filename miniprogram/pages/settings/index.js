@@ -1,6 +1,7 @@
 // pages/settings/index.js
 const app = getApp();
 const classReminder = require("../../utils/classReminder");
+const subscribeConfig = require("../../config/subscribe");
 
 Page({
   data: {
@@ -33,6 +34,11 @@ Page({
     remindOptions: classReminder.REMIND_OPTIONS.map((m) => m + " 分钟"),
     remindIndex: classReminder.REMIND_OPTIONS.indexOf(classReminder.DEFAULT_LEAD_MINUTES),
     syncing: false,
+    // 微信服务通知（订阅消息）
+    reminderQuota: 0,
+    reminderPending: 0,
+    reminderStatusText: "",
+    reminderStatusLoading: false,
   },
 
   onLoad() {
@@ -212,12 +218,114 @@ Page({
     next();
   },
 
+  // 读取服务通知剩余次数（失败不打扰用户）
+  loadReminderStatus() {
+    this.setData({ reminderStatusLoading: true });
+    wx.cloud
+      .callFunction({ name: "quickstartFunctions", data: { type: "getReminderStatus" } })
+      .then((res) => {
+        const data = (res.result && res.result.data) || {};
+        const quota = data.quota || 0;
+        this.setData({
+          reminderStatusLoading: false,
+          reminderQuota: quota,
+          reminderPending: data.pending || 0,
+          reminderStatusText: quota > 0 ? "剩余 " + quota + " 次可发送" : "还没有可发送次数",
+        });
+      })
+      .catch(() => {
+        this.setData({ reminderStatusLoading: false, reminderStatusText: "状态读取失败" });
+      });
+  },
+
+  // 订阅一次（微信要求必须在点击回调里直接调用）
+  subscribeReminder() {
+    const templateId = subscribeConfig.TEMPLATE_ID;
+    if (!templateId || typeof wx.requestSubscribeMessage !== "function") {
+      wx.showModal({
+        title: "暂不可用",
+        content: "当前微信版本不支持订阅消息，或还没有配置模板 ID。",
+        showCancel: false,
+      });
+      return;
+    }
+    wx.requestSubscribeMessage({
+      tmplIds: [templateId],
+      success: (res) => {
+        if (res[templateId] === "accept") {
+          this.saveReminderSubscription();
+        } else if (res[templateId] === "reject") {
+          wx.showToast({ title: "已拒绝，可重新订阅", icon: "none" });
+        } else {
+          wx.showToast({ title: "未获得授权", icon: "none" });
+        }
+      },
+      fail: (err) => {
+        wx.showModal({
+          title: "订阅失败",
+          content: (err && err.errMsg) || "请稍后重试",
+          showCancel: false,
+        });
+      },
+    });
+  },
+
+  // 授权成功后：生成未来 30 天的排期，交给云函数保存
+  saveReminderSubscription() {
+    wx.showLoading({ title: "排期中", mask: true });
+    this.loadActiveSchedule()
+      .then(({ timetable, courses }) => {
+        const tasks = classReminder.buildSubscribeTasks(courses, timetable, {
+          leadMinutes: this.data.remindMinutes,
+          days: subscribeConfig.SCHEDULE_DAYS,
+          maxTasks: subscribeConfig.MAX_TASKS,
+        });
+        return wx.cloud.callFunction({
+          name: "quickstartFunctions",
+          data: {
+            type: "subscribeReminder",
+            data: {
+              timetableId: timetable._id,
+              remindMinutes: this.data.remindMinutes,
+              tasks,
+            },
+          },
+        });
+      })
+      .then((res) => {
+        wx.hideLoading();
+        if (res.result && res.result.success) {
+          const pending = (res.result.data && res.result.data.pending) || 0;
+          wx.showToast({
+            title: pending > 0 ? "已订阅，排期 " + pending + " 条" : "已订阅，暂无待提醒的课",
+            icon: "none",
+          });
+          this.loadReminderStatus();
+        } else {
+          wx.showModal({
+            title: "订阅失败",
+            content: (res.result && res.result.errMsg) || "请稍后重试",
+            showCancel: false,
+          });
+        }
+      })
+      .catch((err) => {
+        wx.hideLoading();
+        wx.showModal({
+          title: "订阅失败",
+          content: (err && err.message) || "读取课表失败",
+          showCancel: false,
+        });
+      });
+  },
+
   onShow() {
     // 从其他页返回时刷新自定义背景状态
     const bgImage = wx.getStorageSync("bgImage") || "";
     if (!!bgImage !== this.data.hasCustomBg) {
       this.setData({ hasCustomBg: !!bgImage, bgImage });
     }
+    this.loadReminderStatus();
   },
 
   /**
