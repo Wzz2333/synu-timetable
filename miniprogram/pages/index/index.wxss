@@ -490,3 +490,30 @@
 .today-mark.on {
   opacity: 1;
 }
+
+/* 下一节课提醒 */
+.timetable-page .upcoming-strip {
+  display: flex;
+  align-items: center;
+  margin-top: 8rpx;
+  padding: 10rpx 16rpx;
+  border-radius: 12rpx;
+  background: rgba(240, 173, 78, 0.16);
+}
+
+.upcoming-strip .upcoming-icon {
+  margin-right: 10rpx;
+  font-size: 24rpx;
+}
+
+.upcoming-strip .upcoming-text {
+  flex: 1;
+  font-size: 24rpx;
+  color: #c77c02;
+}
+
+.upcoming-strip .upcoming-arrow {
+  margin-left: 10rpx;
+  font-size: 24rpx;
+  color: #c77c02;
+}

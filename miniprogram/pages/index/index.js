@@ -2,6 +2,7 @@
 const synu = require("../../config/synu");
 const dateHelper = require("../../utils/dateHelper");
 const freeTime = require("../../utils/freeTime");
+const classReminder = require("../../utils/classReminder");
 const { getActiveCourses } = require("../../utils/courseHelper");
 const COURSE_COLORS = synu.COURSE_COLORS;
 const app = getApp();
@@ -35,12 +36,38 @@ Page({
     todayColumn: -1,
     weekendHidden: false,
     freeSummaryText: "",
+    upcomingText: "",
+    upcomingCourse: null,
   },
 
   onShow() {
     this.loadBg();
     this.loadColors();
     this.ensureTimetable();
+    this.startReminderTick();
+  },
+
+  onHide() {
+    this.stopReminderTick();
+  },
+
+  onUnload() {
+    this.stopReminderTick();
+  },
+
+  // 每 30 秒刷新一次“下一节课”提醒条
+  startReminderTick() {
+    this.stopReminderTick();
+    this._reminderTimer = setInterval(() => {
+      this.refreshUpcoming();
+    }, 30000);
+  },
+
+  stopReminderTick() {
+    if (this._reminderTimer) {
+      clearInterval(this._reminderTimer);
+      this._reminderTimer = null;
+    }
   },
 
   loadBg() {
@@ -197,6 +224,7 @@ Page({
           const grid = this.buildGrid(allCourses, currentWeek);
           this.setData({ weekCourses: grid });
           this.loadTodayFree();
+          this.refreshUpcoming();
         }
       })
       .catch((err) => {
@@ -219,6 +247,39 @@ Page({
     } else {
       this.setData({ freeSummaryText: "今天排满" });
     }
+  },
+
+  // 下一节课提醒条（课前 N 分钟，N 来自设置页，默认 10）
+  refreshUpcoming() {
+    const { timetable, realWeek, todayIndex, inSemester } = this.data;
+    if (!timetable || !this._allCourses || !inSemester) {
+      if (this.data.upcomingText) {
+        this.setData({ upcomingText: "", upcomingCourse: null });
+      }
+      return;
+    }
+    const lead = parseInt(wx.getStorageSync("remindMinutes"), 10) || classReminder.DEFAULT_LEAD_MINUTES;
+    const upcoming = classReminder.getUpcomingClass(
+      this._allCourses,
+      realWeek,
+      todayIndex,
+      new Date(),
+      lead
+    );
+    const text = upcoming ? upcoming.text : "";
+    if (text !== this.data.upcomingText) {
+      this.setData({
+        upcomingText: text,
+        upcomingCourse: upcoming ? upcoming.course : null,
+      });
+    }
+  },
+
+  // 点提醒条 → 打开课程详情
+  onUpcomingTap() {
+    const course = this.data.upcomingCourse;
+    if (!course) return;
+    this.setData({ showDetail: true, detailCourse: course });
   },
 
   // 将课程数据转换为 7天×10节 的网格

@@ -112,6 +112,21 @@ function getWeekDates(startDate, week, dayCount) {
   return result;
 }
 
+/**
+ * 某教学周、星期几对应的日期（本地零点 Date）
+ * @param {string|Date} startDate 开学日期
+ * @param {number} week 教学周（1 起）
+ * @param {number} dayIndex 星期几（周一=1 ... 周日=7）
+ */
+function getDateOfWeekDay(startDate, week, dayIndex) {
+  const start = parseDate(startDate);
+  if (!start) return null;
+  const weekNum = Math.max(1, parseInt(week, 10) || 1);
+  const dayNum = Math.min(7, Math.max(1, parseInt(dayIndex, 10) || 1));
+  const monday = addDays(getMondayOf(start), (weekNum - 1) * 7);
+  return addDays(monday, dayNum - 1);
+}
+
 module.exports = {
   MS_PER_DAY,
   parseDate,
@@ -125,4 +140,5 @@ module.exports = {
   getClampedWeek,
   getToday,
   getWeekDates,
+  getDateOfWeekDay,
 };

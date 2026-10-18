@@ -144,3 +144,25 @@
   background: #f8f8f8;
   border-radius: 8rpx;
 }
+
+/* 上课提醒 */
+.remind-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16rpx 0;
+  margin-bottom: 12rpx;
+}
+
+.remind-label {
+  font-size: 28rpx;
+  color: #333;
+}
+
+.remind-value {
+  padding: 10rpx 24rpx;
+  background: #f5f5f5;
+  border-radius: 10rpx;
+  font-size: 26rpx;
+  color: #1989fa;
+}
