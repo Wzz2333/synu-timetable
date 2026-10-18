@@ -3,7 +3,7 @@
 // item.type：new = 新增 / improve = 优化 / remove = 移除或调整
 module.exports = [
   {
-    version: "v1.0.0",
+    version: "2.0.0",
     date: "2026-10-18",
     current: true,
     items: [
