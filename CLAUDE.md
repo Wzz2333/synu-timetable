@@ -24,10 +24,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 │   ├── app.wxss                  # 全局样式 + 动态文字/边框颜色类
 │   ├── config/
 │   │   ├── synu.js               # 沈师配置：作息表、教学楼、配色、学期计算
-│   │   └── subscribe.js          # 订阅消息：模板 ID、排期天数 / 条数上限
+│   │   ├── subscribe.js          # 订阅消息：模板 ID、排期天数 / 条数上限
+│   │   └── changelog.js          # 更新日志数据（每次更新在数组最前面加一条）
 │   ├── pages/
 │   │   ├── index/                # 主页：周视图课程表 (触摸滑动切周 + 今天指示)
 │   │   ├── free-time/            # 空闲时段：今天 / 本周 双视图 (纯前端计算)
+│   │   ├── changelog/            # 更新日志：读 config/changelog.js 渲染
 │   │   ├── course/edit/          # 课程新增/编辑 (多时段 + 自定义周次)
 │   │   ├── timetable/manage/     # 课表管理 (新建/选择/编辑/删除)
 │   │   ├── import/               # 导入步骤1：粘贴教务系统文本 + 选择目标课表
@@ -180,6 +182,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 定时器事件兼容 `Type` / `type` / `TriggerName` 三种形态；日志里带 `[timer]` / `[remindTick]` 前缀，便于在云函数日志里排查是否真的在每分钟调用
 - 前置条件：首次订阅时云函数会自动创建 `class_reminders` 集合；若提示失败，多半是云函数没重新部署。另外要重新部署云函数并确认定时触发器已上传（右键云函数 →「上传触发器」）
 
+### 11. 更新日志 (changelog + config/changelog.js)
+- 入口：首页课表名下方的小按钮「更新日志」，点开进入 `pages/changelog`
+- 内容写在 `miniprogram/config/changelog.js`，数组按时间倒序，每条 `{ version, date, current, items: [{ type, text }] }`；`type` 取 `new` / `improve` / `remove`，页面会渲染成「新增 / 优化 / 移除」小标签
+- 以后每次更新：在数组最前面加一条，并把上一条的 `current` 去掉（新条目 `current: true`）
+- 纯前端渲染，不依赖云函数；新增页面需在 `app.json` 的 `pages` 里注册
+
 ## 关键架构约定
 
 - **页面路由**: 在 `app.json` → `pages` 中注册，框架自动按路径映射。新增页面需同时在这里注册。
@@ -220,6 +228,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - [x] 课程保存前时间冲突检测（2026-10-18）
 - [x] 上课提醒：首页提醒条 + 微信服务通知（2026-10-18）
 - [x] 微信服务通知（订阅消息 + 每分钟定时发送）（2026-10-18）
+- [x] 更新日志页 + 首页入口（2026-10-18）
 
 ## 待清理的 QuickStart 遗留
 

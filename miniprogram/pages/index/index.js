@@ -358,6 +358,13 @@ Page({
     });
   },
 
+  // 跳转更新日志
+  goChangelog() {
+    wx.navigateTo({
+      url: "/pages/changelog/index",
+    });
+  },
+
   // 点击课程卡片 → 详情
   onCourseTap(e) {
     const course = e.currentTarget.dataset.course;

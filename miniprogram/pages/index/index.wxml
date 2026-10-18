@@ -5,9 +5,12 @@
 <view class="timetable-page {{fontClass}} {{borderClass}}" bindtouchstart="onTouchStart" bindtouchend="onTouchEnd">
   <view class="header">
     <view class="header-main">
-      <view class="timetable-title" bindtap="goManage">
-        <text class="title-text">{{timetable.name || '我的课表'}}</text>
-        <view class="title-chevron"></view>
+      <view class="title-block">
+        <view class="timetable-title" bindtap="goManage">
+          <text class="title-text">{{timetable.name || '我的课表'}}</text>
+          <view class="title-chevron"></view>
+        </view>
+        <view class="changelog-chip" hover-class="changelog-chip-hover" bindtap="goChangelog">更新日志</view>
       </view>
       <view class="action-pill" hover-class="action-pill-hover" bindtap="goSettings">设置</view>
     </view>

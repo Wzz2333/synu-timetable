@@ -1,0 +1,24 @@
+<!--pages/changelog/index.wxml-->
+<view class="bg-layer" wx:if="{{bgImage}}">
+  <image class="bg-image" src="{{bgImage}}" mode="aspectFill" style="opacity: {{bgOpacity}};" />
+</view>
+<view class="changelog-page">
+  <view class="page-head">
+    <view class="head-title">更新日志</view>
+    <view class="head-sub">记录每次更新，最新的在最上面</view>
+  </view>
+
+  <view class="version-card" wx:for="{{versions}}" wx:key="date" wx:for-item="ver">
+    <view class="version-head">
+      <view class="version-name">{{ver.version}}</view>
+      <view class="version-tag" wx:if="{{ver.current}}">当前版本</view>
+      <view class="version-date">{{ver.date}}</view>
+    </view>
+    <view class="update-item" wx:for="{{ver.items}}" wx:key="index" wx:for-item="item">
+      <view class="type-tag {{item.type}}">{{item.typeLabel}}</view>
+      <view class="item-text">{{item.text}}</view>
+    </view>
+  </view>
+
+  <view class="page-foot">以后有更新，继续往这里加</view>
+</view>
