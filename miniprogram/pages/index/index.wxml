@@ -4,31 +4,33 @@
 </view>
 <view class="timetable-page {{fontClass}} {{borderClass}}" bindtouchstart="onTouchStart" bindtouchend="onTouchEnd">
   <view class="header">
-    <view class="header-top">
+    <view class="header-main">
       <view class="timetable-title" bindtap="goManage">
-        <text>{{timetable.name}}</text>
-        <text class="title-arrow">▾</text>
+        <text class="title-text">{{timetable.name || '我的课表'}}</text>
+        <view class="title-chevron"></view>
       </view>
-      <view class="settings-btn" bindtap="goSettings">设置</view>
-    </view>
-    <view class="week-switcher">
-      <view class="week-arrow {{currentWeek <= 1 ? 'disabled' : ''}}" bindtap="prevWeek">◀</view>
-      <view class="week-label">第 {{currentWeek}} 周<text class="week-badge" wx:if="{{isRealWeek}}">本周</text></view>
-      <view class="week-arrow {{currentWeek >= timetable.totalWeeks ? 'disabled' : ''}}" bindtap="nextWeek">▶</view>
+      <view class="action-pill" hover-class="action-pill-hover" bindtap="goSettings">设置</view>
     </view>
 
-    <!-- 今天条：显示今天周几 / 日期 / 空闲摘要，点击进入空闲时段页 -->
-    <view class="today-strip" bindtap="goFreeTime">
-      <view class="today-info">
-        <text class="today-weekday">今天 {{todayName}}</text>
-        <text class="today-date">{{todayMonthDay}}</text>
-        <text class="today-free" wx:if="{{freeSummaryText}}">· {{freeSummaryText}}</text>
-        <text class="today-note" wx:if="{{weekendHidden}}">· 周末未显示</text>
+    <view class="week-row">
+      <view class="week-pill">
+        <view class="week-arrow left {{currentWeek <= 1 ? 'disabled' : ''}}" hover-class="week-arrow-hover" bindtap="prevWeek">
+          <view class="chev"></view>
+        </view>
+        <view class="week-label">第 {{currentWeek}} 周<text class="week-badge" wx:if="{{isRealWeek}}">本周</text></view>
+        <view class="week-arrow right {{currentWeek >= timetable.totalWeeks ? 'disabled' : ''}}" hover-class="week-arrow-hover" bindtap="nextWeek">
+          <view class="chev"></view>
+        </view>
       </view>
-      <view class="today-jump" wx:if="{{timetable}}">
-        <text class="today-back" wx:if="{{currentWeek !== realWeek}}" catchtap="backToRealWeek">回到本周</text>
-        <text class="today-arrow">›</text>
-      </view>
+      <view class="week-back" wx:if="{{currentWeek !== realWeek}}" catchtap="backToRealWeek">回到本周</view>
+    </view>
+
+    <!-- 今天 + 空闲摘要，点击进入空闲时段页 -->
+    <view class="day-line" bindtap="goFreeTime">
+      <text class="day-main">今天 {{todayName}} · {{todayMonthDay}}</text>
+      <text class="day-free" wx:if="{{freeSummaryText}}"> · {{freeSummaryText}}</text>
+      <text class="day-note" wx:if="{{weekendHidden}}"> · 周末未显示</text>
+      <view class="day-chevron"></view>
     </view>
 
     <!-- 下一节课提醒（课前 N 分钟出现） -->

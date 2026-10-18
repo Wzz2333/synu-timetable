@@ -11,57 +11,165 @@
 
 /* 顶部 */
 .header {
-  background: rgba(255,255,255,0.75);
-  padding: 10rpx 30rpx;
-  color: #333;
+  background: rgba(255, 255, 255, 0.94);
+  padding: 16rpx 24rpx 10rpx;
+  box-shadow: 0 1rpx 0 rgba(0, 0, 0, 0.05);
 }
 
-.header-top {
+.header-main {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 6rpx;
-}
-
-.settings-btn {
-  font-size: 24rpx;
-  padding: 4rpx 16rpx;
-  border: 2rpx solid #ccc;
-  border-radius: 20rpx;
 }
 
 .timetable-title {
-  font-size: 26rpx;
-  opacity: 0.85;
-  margin-bottom: 6rpx;
   display: flex;
   align-items: center;
+  min-width: 0;
+  padding: 4rpx 0;
 }
 
-.title-arrow {
-  margin-left: 8rpx;
+.header .title-text {
+  max-width: 400rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #111827;
+}
+
+.title-chevron {
+  width: 12rpx;
+  height: 12rpx;
+  margin-left: 12rpx;
+  border-top: 2rpx solid #9ca3af;
+  border-right: 2rpx solid #9ca3af;
+  transform: rotate(45deg);
+}
+
+.header .action-pill {
+  padding: 8rpx 22rpx;
+  border-radius: 999rpx;
+  background: #f3f4f6;
   font-size: 22rpx;
+  color: #4b5563;
 }
 
-.week-switcher {
+/* 周次切换：胶囊 + 圆形箭头 */
+.week-row {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
+  margin-top: 12rpx;
 }
 
-.week-label {
-  font-size: 36rpx;
+.week-pill {
+  display: flex;
+  align-items: center;
+  padding: 4rpx;
+  border-radius: 999rpx;
+  background: #eef4ff;
+}
+
+.header .week-label {
+  display: flex;
+  align-items: center;
+  padding: 0 16rpx;
+  font-size: 28rpx;
   font-weight: 600;
-  margin: 0 40rpx;
+  letter-spacing: 1rpx;
+  color: #1d4ed8;
+}
+
+.header .week-badge {
+  margin-left: 10rpx;
+  padding: 2rpx 10rpx;
+  font-size: 18rpx;
+  font-weight: 500;
+  color: #ffffff;
+  background: #1989fa;
+  border-radius: 8rpx;
 }
 
 .week-arrow {
-  font-size: 32rpx;
-  padding: 10rpx 20rpx;
+  position: relative;
+  width: 60rpx;
+  height: 60rpx;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1rpx 4rpx rgba(17, 24, 39, 0.08);
+}
+
+.week-arrow .chev {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 14rpx;
+  height: 14rpx;
+  border-top: 3rpx solid #1d4ed8;
+  border-left: 3rpx solid #1d4ed8;
+  transform: translate(-40%, -50%) rotate(-45deg);
+}
+
+.week-arrow.right .chev {
+  transform: translate(-60%, -50%) rotate(135deg);
 }
 
 .week-arrow.disabled {
-  opacity: 0.3;
+  opacity: 0.35;
+}
+
+.action-pill-hover {
+  background: #e5e7eb !important;
+}
+
+.week-arrow-hover {
+  background: #f8fafc !important;
+}
+
+.header .week-back {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 6rpx 16rpx;
+  border-radius: 999rpx;
+  background: rgba(25, 137, 250, 0.1);
+  font-size: 20rpx;
+  color: #1989fa;
+}
+
+/* 今天 + 空闲摘要 */
+.header .day-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 10rpx;
+  font-size: 22rpx;
+  color: #6b7280;
+}
+
+.header .day-main {
+  font-weight: 500;
+}
+
+.header .day-free {
+  color: #059669;
+}
+
+.header .day-note {
+  color: #9ca3af;
+}
+
+.day-chevron {
+  width: 10rpx;
+  height: 10rpx;
+  margin-left: 10rpx;
+  border-top: 2rpx solid #9ca3af;
+  border-right: 2rpx solid #9ca3af;
+  transform: rotate(45deg);
 }
 
 /* 全局背景 */
@@ -156,7 +264,7 @@
 /* 课程卡片 */
 .course-card {
   margin: 2rpx;
-  border-radius: 8rpx;
+  border-radius: 10rpx;
   padding: 6rpx 8rpx;
   overflow: hidden;
   box-sizing: border-box;
@@ -165,7 +273,8 @@
   right: 0;
   top: 0;
   z-index: 2;
-  opacity: 0.78;
+  opacity: 0.92;
+  box-shadow: 0 2rpx 6rpx rgba(17, 24, 39, 0.08);
 }
 
 .course-name {
@@ -190,8 +299,12 @@
 }
 
 .empty-plus {
-  font-size: 36rpx;
+  font-size: 30rpx;
   font-weight: 300;
+}
+
+.timetable-page .empty-plus {
+  color: #d1d5db;
 }
 
 /* 悬浮添加按钮 */
@@ -399,74 +512,6 @@
 }
 
 /* ===== 今天指示 ===== */
-
-/* 本周徽标（只在浏览真实周次时出现） */
-.week-label .week-badge {
-  margin-left: 10rpx;
-  padding: 0 8rpx;
-  font-size: 18rpx;
-  font-weight: 400;
-  color: #1989fa;
-  border: 1rpx solid #1989fa;
-  border-radius: 8rpx;
-}
-
-/* 今天条 */
-.timetable-page .today-strip {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 8rpx;
-  padding: 4rpx 2rpx 0;
-  font-size: 22rpx;
-  color: #666;
-}
-
-.today-strip .today-info {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.today-strip .today-weekday {
-  color: #1989fa;
-  font-weight: 600;
-}
-
-.today-strip .today-date {
-  margin-left: 10rpx;
-  color: #666;
-}
-
-.today-strip .today-free {
-  margin-left: 10rpx;
-  color: #39b54a;
-}
-
-.today-strip .today-note {
-  margin-left: 10rpx;
-  color: #999;
-}
-
-.today-strip .today-jump {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-.today-strip .today-back {
-  padding: 2rpx 14rpx;
-  font-size: 20rpx;
-  color: #1989fa;
-  border: 1rpx solid #1989fa;
-  border-radius: 20rpx;
-}
-
-.today-strip .today-arrow {
-  margin-left: 10rpx;
-  font-size: 26rpx;
-  color: #999;
-}
 
 /* 今天所在的列 */
 .day-header.today .day-name {
