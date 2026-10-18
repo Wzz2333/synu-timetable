@@ -41,7 +41,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 │       ├── weekHelper.js         # 周次工具：buildWeeks / detectWeekType
 │       ├── courseHelper.js       # "某门课在某周是否生效"判断，首页 / 空闲页共用
 │       ├── dateHelper.js         # 日期与教学周纯函数：今天、真实周次、逐日日期
-│       └── freeTime.js           # 空闲时段计算：忙碌区间 → 补集 → 分档
+│       ├── freeTime.js           # 空闲时段计算：忙碌区间 → 补集 → 分档
+│       ├── courseConflict.js     # 时间冲突检测：同天 + 节次重叠 + 周次交集
+│       └── classReminder.js      # 上课提醒：下一节课 + 生成手机日历事件
 ├── cloudfunctions/
 │   └── quickstartFunctions/      # 入口云函数 (按 event.type 路由分发)
 ├── test-samples/                 # 解析器回归测试 (Node.js 直接运行)
@@ -115,7 +117,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 2. `pages/import/preview/index` — 展示解析结果，可逐条编辑/删除
 3. 确认后调用 `addCourseBatch` 批量入库，完成后自动跳转管理页设置开学日期
 
-**测试**：`test-samples/` 下有 6 个 Node.js 脚本可独立运行（解析器 4 个 + 日期 1 个 + 空闲时段 1 个）。
+**测试**：`test-samples/` 下有 8 个 Node.js 脚本可独立运行（解析器 4 个 + 日期 1 个 + 空闲时段 1 个 + 时间冲突 1 个 + 上课提醒 1 个）。
 
 ### 4. 个性化外观 (settings)
 - 主题切换：浅色 (white.jpg) / 深色 (black.jpg)，存在 `wx.storage` 的 `theme` 键
@@ -148,6 +150,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - 按净可用时长分档：长 ≥2h / 中 1–2h / 短 30–60min / 碎片 15–30min / 饭点
 - 全部为纯前端计算，不改云函数与数据库；`dateHelper` / `courseHelper` / `freeTime` 均为纯函数，可直接 node 跑测试
 
+### 8. 时间冲突检测 (course/edit + courseConflict)
+- 保存课程前读取同课表已有课程，比对「同一天 + 节次重叠 + 周次有交集」
+- 有冲突时弹窗列出最多 3 门课与具体时间（如「与《大学物理》周三 第3-4节，第1-16周冲突」），可选「仍然保存」或「返回修改」；编辑自己时自动排除
+- 周次判定：`weeks` 数组优先（单周课为 [1,3,5...]），否则按 startWeek/endWeek + 单双周展开
+- 读取已有课程失败时降级为「未做冲突检查，是否仍然保存」，不阻断保存
+- 纯函数在 `utils/courseConflict.js`，与编辑页解耦、可单独测试
+
+### 9. 上课提醒 (index + settings + classReminder)
+- 首页：上课前 N 分钟（默认 10，设置页可选 5/10/15/20/30）顶部出现「12 分钟后 · 高等数学 · 博文202」提醒条，点开课程详情；每 30 秒刷新一次
+- 设置页「上课提醒」：一键「同步到手机日历」，用 `wx.addPhoneRepeatCalendar` 把本学期课程写进系统日历（`alarmOffset` 为提前秒数）
+  - 连续周次（如 1-16 周）合并成一条「每周重复」事件
+  - 不连续周次（如单周 1,3,5）拆成单次事件
+- 系统日历提醒不依赖网络、也不需要订阅消息模板；真正的微信服务通知（订阅消息）需要公众平台模板 ID，暂未接入
+- 纯函数在 `utils/classReminder.js`：`getUpcomingClass` / `buildCalendarEvents`，可 Node 测试
+
 ## 关键架构约定
 
 - **页面路由**: 在 `app.json` → `pages` 中注册，框架自动按路径映射。新增页面需同时在这里注册。
@@ -155,7 +172,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **跨页传参**: 复杂对象（如 `slots[]`, `weeks[]`）通过 URL query string 传递，使用 `encodeURIComponent(JSON.stringify())`。
 - **全局状态**: `app.globalData.activeTimetableId` 维护当前课表，`app.resolveBackground()` 统一解析背景。
 - **样式单位**: 使用 `rpx` (responsive pixel)，750rpx = 屏幕宽度。
-- **本地存储键**: `hasLaunched`, `bgImage`, `bgOpacity`, `theme`, `fontColor`, `borderColor`, `profile`
+- **本地存储键**: `hasLaunched`, `bgImage`, `bgOpacity`, `theme`, `fontColor`, `borderColor`, `profile`, `remindMinutes`
 
 ## 开发命令
 
@@ -168,6 +185,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **运行解析器测试**: `node test-samples/test-real-raw.js`
 - **运行日期测试**: `node test-samples/test-date-helper.js`
 - **运行空闲时段测试**: `node test-samples/test-free-time.js`
+- **运行时间冲突测试**: `node test-samples/test-course-conflict.js`
+- **运行上课提醒测试**: `node test-samples/test-class-reminder.js`
 
 ## 已完成的改造工作
 
@@ -182,6 +201,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - [x] 实现空闲时段挖掘（今天 / 本周，含饭点标记与实时剩余）
 - [x] 首页今天周几指示 + 今天列高亮 + 回到本周
 - [x] 引入 git 版本控制（2026-10-18）
+- [x] 课程保存前时间冲突检测（2026-10-18）
+- [x] 上课提醒：首页提醒条 + 一键写入手机日历（2026-10-18）
 
 ## 待清理的 QuickStart 遗留
 
