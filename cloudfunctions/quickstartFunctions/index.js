@@ -648,6 +648,8 @@ const getReminderStatus = async () => {
       .orderBy("sendAt", "asc")
       .limit(1)
       .get();
+    const tickRes = await db.collection(REMINDER_COLLECTION).where({ type: "tick" }).get();
+    const tickDoc = tickRes.data[0] || null;
     return {
       success: true,
       data: {
@@ -655,12 +657,26 @@ const getReminderStatus = async () => {
         pending: (pendingRes && pendingRes.total) || 0,
         lastSentAt: sentRes.data[0] ? sentRes.data[0].sendAt : null,
         nextSendAt: nextRes.data[0] ? nextRes.data[0].sendAt : null,
+        lastTickAt: tickDoc ? tickDoc.lastTickAt : null,
+        lastTickScanned: tickDoc ? tickDoc.scanned || 0 : 0,
+        lastTickSent: tickDoc ? tickDoc.sent || 0 : 0,
       },
     };
   } catch (e) {
     if (isCollectionMissing(e)) {
       // 还没订阅过、集合都没建：当作空状态，不打扰用户
-      return { success: true, data: { quota: 0, pending: 0, lastSentAt: null, nextSendAt: null } };
+      return {
+        success: true,
+        data: {
+          quota: 0,
+          pending: 0,
+          lastSentAt: null,
+          nextSendAt: null,
+          lastTickAt: null,
+          lastTickScanned: 0,
+          lastTickSent: 0,
+        },
+      };
     }
     return { success: false, errMsg: errText(e) };
   }
@@ -720,16 +736,38 @@ const sendTestReminder = async (event) => {
   }
 };
 
+// 记录最近一次定时器运行情况，方便在设置页确认触发器是否在工作
+async function recordTick(scanned, sent, skipped, failed) {
+  try {
+    const res = await db.collection(REMINDER_COLLECTION).where({ type: "tick" }).get();
+    const data = {
+      type: "tick",
+      lastTickAt: Date.now(),
+      scanned,
+      sent,
+      skipped,
+      failed,
+      updateTime: db.serverDate(),
+    };
+    if (res.data[0]) {
+      await db.collection(REMINDER_COLLECTION).doc(res.data[0]._id).update({ data });
+    } else {
+      await db.collection(REMINDER_COLLECTION).add({ data });
+    }
+  } catch (e) {
+    // 记录失败不影响发送
+  }
+}
+
 // 定时触发器每分钟跑一次：把到点的任务发出去
-const remindTick = async () => {
+// 传 onlyOpenid 时只处理该用户的任务（设置页“立即执行一次到点检查”用）
+const remindTick = async (onlyOpenid) => {
   try {
     const _ = db.command;
     const now = Date.now();
-    const res = await db
-      .collection(REMINDER_COLLECTION)
-      .where({ type: "task", status: "pending", sendAt: _.lte(now) })
-      .limit(50)
-      .get();
+    const where = { type: "task", status: "pending", sendAt: _.lte(now) };
+    if (onlyOpenid) where._openid = onlyOpenid;
+    const res = await db.collection(REMINDER_COLLECTION).where(where).limit(50).get();
     const tasks = res.data || [];
     let sent = 0;
     let skipped = 0;
@@ -792,6 +830,7 @@ const remindTick = async () => {
       }
     }
 
+    await recordTick(tasks.length, sent, skipped, failed);
     return { success: true, data: { scanned: tasks.length, sent, skipped, failed } };
   } catch (e) {
     if (isCollectionMissing(e)) {
@@ -800,6 +839,13 @@ const remindTick = async () => {
     console.error("remindTick 失败", e);
     return { success: false, errMsg: errText(e) };
   }
+};
+
+// 设置页「立即执行一次到点检查」：只处理当前用户到点的任务，并返回结果
+const checkMyReminders = async () => {
+  const openid = cloud.getWXContext().OPENID;
+  if (!openid) return { success: false, errMsg: "未登录或会话失效" };
+  return await remindTick(openid);
 };
 
 // const getOpenId = require('./getOpenId/index');
@@ -860,6 +906,8 @@ exports.main = async (event, context) => {
       return await sendTestReminder(event);
     case "rescheduleReminder":
       return await rescheduleReminder(event);
+    case "checkMyReminders":
+      return await checkMyReminders();
     case "remindTick":
       // 手动触发一次（调试用：先手动排期，再调它就能立刻发）
       return await remindTick();

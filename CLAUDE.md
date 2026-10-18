@@ -88,6 +88,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `getReminderStatus` | 查询订阅状态 | 剩余可发送次数 / 待发送条数 / 最近发送时间 |
 | `sendTestReminder` | 发一条测试提醒 | 消耗 1 次授权，用测试内容立即发送，用于验证模板字段 |
 | `rescheduleReminder` | 重建排期 | 改提前量 / 改课表后调用，不改变可发送次数 |
+| `checkMyReminders` | 到点检查 | 只处理当前用户已到点的任务，设置页用来区分「没排上」和「定时器没跑」 |
 | `remindTick` | 发送到点提醒 | 定时触发器每分钟调用；也可手动触发调试 |
 
 > 注：`getOpenId`, `getMiniProgramCode`, `createCollection`, `selectRecord`, `updateRecord`, `insertRecord`, `deleteRecord` 为 QuickStart 模板遗留的演示接口，未被前端调用。
@@ -181,6 +182,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 设置页「立即发一条测试提醒」：消耗 1 次授权，用测试内容（测试课程/测试老师/测试地点）立刻发一条，用来验证模板字段与权限；对应云函数 `sendTestReminder`
 - 改提前量会自动调用 `rescheduleReminder` 重建排期（不消耗授权）；改完课表可点「刷新排期」手动重建。状态栏显示剩余次数 / 待发条数 / 下一条发送时间（`nextSendAt`）
 - 排期宽限 2 分钟：提醒时刻前后 2 分钟内的到点任务仍会补排，避免「刚好到点才订阅」导致漏提醒
+- 每次定时器运行都会写一条 `type=tick` 记录（最近运行时间 / 扫描 / 发送条数），设置页显示「定时器最近运行…」，超过 5 分钟没运行会变黄提示；「立即执行一次到点检查」调用 `checkMyReminders` 手动跑一次，用来判断是触发器没上传还是任务没排上
 - 前置条件：首次订阅时云函数会自动创建 `class_reminders` 集合；若提示失败，多半是云函数没重新部署。另外要重新部署云函数并确认定时触发器已上传（右键云函数 →「上传触发器」）
 
 ## 关键架构约定

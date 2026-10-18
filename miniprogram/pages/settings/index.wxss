@@ -219,3 +219,13 @@
   font-size: 22rpx;
   color: #e6a23c;
 }
+
+.remind-tick {
+  margin-bottom: 16rpx;
+  font-size: 22rpx;
+  color: #888;
+}
+
+.remind-tick.warn {
+  color: #e6a23c;
+}
