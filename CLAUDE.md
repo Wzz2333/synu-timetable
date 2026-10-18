@@ -174,6 +174,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 模板 ID 在 `config/subscribe.js`；云函数里的模板字段映射是 `cloudfunctions/quickstartFunctions/index.js` 顶部的 `SUBSCRIBE_FIELDS`（需与公众平台模板一致）
 - 设置页「微信服务通知」→「订阅一次提醒」：`wx.requestSubscribeMessage` 授权 → `buildSubscribeTasks` 生成未来 30 天每次课的排期 → 云函数 `subscribeReminder` 保存并把可发送次数 +1
 - 云函数 `config.json` 带 `subscribeMessage.send` 权限和每分钟执行的定时触发器；`remindTick` 查找到点任务 → 发消息 → 扣减次数，次数用完的任务标记 `no_quota`
+- 消息点开跳首页；`SUBSCRIBE_MINIPROGRAM_STATE` 默认 `formal`（正式版），测试阶段改成 `developer` / `trial`
 - 一次性订阅：一次授权只能发一条，想连续多条需多次点订阅；若模板是长期订阅，把 `SUBSCRIBE_LONG_TERM` 改成 `true`
 - 前置条件：云开发控制台创建 `class_reminders` 集合（权限「仅创建者可读写」），重新部署云函数；若定时器没生效，右键云函数 →「上传触发器」
 

@@ -17,6 +17,8 @@ const SUBSCRIBE_FIELDS = {
 };
 // 一次性订阅：每发一条消耗一次授权；若模板是“长期订阅”，改成 true（不扣次数）
 const SUBSCRIBE_LONG_TERM = false;
+// 点开通知后打开的版本：formal=正式版，trial=体验版，developer=开发版。测试阶段改成 developer 或 trial
+const SUBSCRIBE_MINIPROGRAM_STATE = "formal";
 const REMINDER_COLLECTION = "class_reminders";
 const REMINDER_MAX_QUOTA = 20;
 
@@ -622,7 +624,7 @@ const remindTick = async () => {
           templateId: SUBSCRIBE_TEMPLATE_ID,
           page: "pages/index/index",
           data: buildReminderMessage(task),
-          miniprogramState: "formal",
+          miniprogramState: SUBSCRIBE_MINIPROGRAM_STATE,
         });
         await mark("sent");
         if (!SUBSCRIBE_LONG_TERM) {
