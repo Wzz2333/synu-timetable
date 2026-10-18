@@ -762,6 +762,7 @@ async function recordTick(scanned, sent, skipped, failed) {
 // 定时触发器每分钟跑一次：把到点的任务发出去
 // 传 onlyOpenid 时只处理该用户的任务（设置页“立即执行一次到点检查”用）
 const remindTick = async (onlyOpenid) => {
+  let scanned = 0;
   try {
     const _ = db.command;
     const now = Date.now();
@@ -769,6 +770,7 @@ const remindTick = async (onlyOpenid) => {
     if (onlyOpenid) where._openid = onlyOpenid;
     const res = await db.collection(REMINDER_COLLECTION).where(where).limit(50).get();
     const tasks = res.data || [];
+    scanned = tasks.length;
     let sent = 0;
     let skipped = 0;
     let failed = 0;
@@ -830,13 +832,17 @@ const remindTick = async (onlyOpenid) => {
       }
     }
 
-    await recordTick(tasks.length, sent, skipped, failed);
-    return { success: true, data: { scanned: tasks.length, sent, skipped, failed } };
+    console.log("[remindTick]", onlyOpenid ? "user" : "timer", "scanned", scanned, "sent", sent, "skipped", skipped, "failed", failed);
+    await recordTick(scanned, sent, skipped, failed);
+    return { success: true, data: { scanned, sent, skipped, failed } };
   } catch (e) {
     if (isCollectionMissing(e)) {
+      await recordTick(0, 0, 0, 1);
       return { success: true, data: { scanned: 0, sent: 0, skipped: 0, failed: 0, note: "集合不存在" } };
     }
     console.error("remindTick 失败", e);
+    // 即使失败也记一次，设置页能看出定时器确实被调用了
+    await recordTick(scanned, 0, 0, 1);
     return { success: false, errMsg: errText(e) };
   }
 };
@@ -857,9 +863,20 @@ const checkMyReminders = async () => {
 // const genMpQrcode = require('./genMpQrcode/index');
 // 云函数入口函数
 exports.main = async (event, context) => {
-  // 云函数定时触发器（config.json → triggers）：每分钟检查到点的上课提醒
-  if (event && event.Type === "Timer") {
+  // 云函数定时触发器：兼容事件里 Type/type 大小写、以及带 TriggerName 的变体
+  const isTimerEvent =
+    event &&
+    (event.Type === "Timer" ||
+      event.type === "Timer" ||
+      (event.TriggerName && event.Time));
+  if (isTimerEvent) {
+    console.log("[timer] 定时触发器触发", JSON.stringify(event));
     return await remindTick();
+  }
+  if (!event || !event.type) {
+    // 未知调用（多为触发器事件格式差异），记日志方便排查
+    console.log("[warn] 收到无 type 的事件", JSON.stringify(event));
+    return { success: false, errMsg: "unknown event" };
   }
   switch (event.type) {
     case "getOpenId":
