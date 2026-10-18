@@ -25,7 +25,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 │   ├── config/
 │   │   └── synu.js               # 沈师配置：作息表、教学楼、配色、学期计算
 │   ├── pages/
-│   │   ├── index/                # 主页：周视图课程表 (触摸滑动切周)
+│   │   ├── index/                # 主页：周视图课程表 (触摸滑动切周 + 今天指示)
+│   │   ├── free-time/            # 空闲时段：今天 / 本周 双视图 (纯前端计算)
 │   │   ├── course/edit/          # 课程新增/编辑 (多时段 + 自定义周次)
 │   │   ├── timetable/manage/     # 课表管理 (新建/选择/编辑/删除)
 │   │   ├── import/               # 导入步骤1：粘贴教务系统文本 + 选择目标课表
@@ -37,7 +38,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 │   │   └── cloudTipModal/        # 云开发提示组件
 │   └── utils/
 │       ├── parseScheduleText.js  # 教务系统文本解析器 (406行，核心模块)
-│       └── weekHelper.js         # 周次工具：buildWeeks / detectWeekType
+│       ├── weekHelper.js         # 周次工具：buildWeeks / detectWeekType
+│       ├── courseHelper.js       # "某门课在某周是否生效"判断，首页 / 空闲页共用
+│       ├── dateHelper.js         # 日期与教学周纯函数：今天、真实周次、逐日日期
+│       └── freeTime.js           # 空闲时段计算：忙碌区间 → 补集 → 分档
 ├── cloudfunctions/
 │   └── quickstartFunctions/      # 入口云函数 (按 event.type 路由分发)
 ├── test-samples/                 # 解析器回归测试 (Node.js 直接运行)
@@ -111,7 +115,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 2. `pages/import/preview/index` — 展示解析结果，可逐条编辑/删除
 3. 确认后调用 `addCourseBatch` 批量入库，完成后自动跳转管理页设置开学日期
 
-**测试**：`test-samples/` 下有 4 个 Node.js 脚本可独立运行验证解析器。
+**测试**：`test-samples/` 下有 6 个 Node.js 脚本可独立运行（解析器 4 个 + 日期 1 个 + 空闲时段 1 个）。
 
 ### 4. 个性化外观 (settings)
 - 主题切换：浅色 (white.jpg) / 深色 (black.jpg)，存在 `wx.storage` 的 `theme` 键
@@ -133,6 +137,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 头像上传云存储 → 资料存入 `users` 集合（upsert 模式）
 - 登录态本地缓存到 `wx.storage.profile`
 
+### 7. 空闲时段与今天指示 (free-time + dateHelper + freeTime)
+- 首页顶部「今天条」显示今天周几 / 日期 / 今天剩余空闲，点开进入空闲时段页
+- 今天所在列高亮（仅在浏览真实教学周时）；翻到别的周时出现「回到本周」
+- 空闲时段页：「今天」列出连续空闲窗口（长 / 中 / 短 / 碎片 / 饭点），「本周」按天汇总
+- 计算规则（`utils/freeTime.js`）：
+  - 按周过滤课程（`courseHelper.isCourseActiveInWeek`，与首页网格同一套判断）
+  - slot 按 `SLOT_TIMES` 展开成分钟区间，间隔 ≤15 分钟的课间先合并
+  - 在 08:20–22:00 内求补集 → 扣掉午休 (11:45–13:15) / 晚饭 (16:35–17:30) 的分钟数
+  - 按净可用时长分档：长 ≥2h / 中 1–2h / 短 30–60min / 碎片 15–30min / 饭点
+- 全部为纯前端计算，不改云函数与数据库；`dateHelper` / `courseHelper` / `freeTime` 均为纯函数，可直接 node 跑测试
+
 ## 关键架构约定
 
 - **页面路由**: 在 `app.json` → `pages` 中注册，框架自动按路径映射。新增页面需同时在这里注册。
@@ -151,21 +166,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **真机预览**: 微信开发者工具 → 点击「预览」生成二维码
 - **上传代码**: 微信开发者工具 → 点击「上传」
 - **运行解析器测试**: `node test-samples/test-real-raw.js`
+- **运行日期测试**: `node test-samples/test-date-helper.js`
+- **运行空闲时段测试**: `node test-samples/test-free-time.js`
 
 ## 已完成的改造工作
 
 - [x] 将 QuickStart 模板改造为课程表应用，替换全部页面
 - [x] 实现云数据库三张核心表 (timetables / courses / users)
-- [x] 实现云函数 10 个业务接口
+- [x] 实现云函数 11 个业务接口
 - [x] 实现教务系统文本解析器 + 批量导入流程
 - [x] 实现多课表管理 + 课程 CRUD
 - [x] 实现个性化设置（主题/背景/配色）
 - [x] 实现微信头像昵称登录
 - [x] 删除首次启动登录引导弹窗（2026-06-08）
+- [x] 实现空闲时段挖掘（今天 / 本周，含饭点标记与实时剩余）
+- [x] 首页今天周几指示 + 今天列高亮 + 回到本周
+- [x] 引入 git 版本控制（2026-10-18）
 
 ## 待清理的 QuickStart 遗留
 
-- [ ] 云函数中 6 个演示接口 (`getOpenId`, `getMiniProgramCode`, `createCollection`, `selectRecord`, `updateRecord`, `insertRecord`, `deleteRecord`)
+- [ ] 云函数中 7 个演示接口 (`getOpenId`, `getMiniProgramCode`, `createCollection`, `selectRecord`, `updateRecord`, `insertRecord`, `deleteRecord`)
 - [ ] `miniprogram/envList.js` (空模块)
 - [ ] `project.config.json` 中 `condition.miniprogram.list` 的 `databaseGuide` 引用
 - [ ] 项目名 `quickstart-wx-cloud` → 可改为 `synu-timetable`
