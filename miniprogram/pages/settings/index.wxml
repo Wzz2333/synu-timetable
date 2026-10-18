@@ -93,6 +93,7 @@
     <button class="setting-btn ghost-btn" bindtap="sendTestReminder">立即发一条测试提醒</button>
     <button class="setting-btn ghost-btn" bindtap="refreshReminderSchedule">刷新排期（不消耗授权）</button>
     <button class="setting-btn ghost-btn" bindtap="checkNow">立即执行一次到点检查</button>
+    <view class="theme-hint">「测试提醒」和「到点检查」都会消耗订阅授权（发 1 条耗 1 次）；真实提醒到点前别把次数用光。</view>
     <view class="theme-hint">改完课表或提前量记得点「刷新排期」；到点自动发送依赖云函数的定时触发器（部署后右键云函数 →「上传触发器」确认一次）。</view>
   </view>
 

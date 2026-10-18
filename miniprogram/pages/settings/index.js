@@ -400,7 +400,8 @@ Page({
         wx.hideLoading();
         const result = res && res.result;
         if (result && result.success) {
-          wx.showToast({ title: "已发送，去看微信通知", icon: "none" });
+          const remaining = result.data && typeof result.data.remaining === "number" ? result.data.remaining : "?";
+          wx.showToast({ title: "已发送（剩余 " + remaining + " 次授权）", icon: "none" });
           this.loadReminderStatus();
         } else {
           wx.showModal({
@@ -435,6 +436,7 @@ Page({
           const skipped = data.skipped || 0;
           const failed = data.failed || 0;
           let content = "扫描 " + scanned + " 条，发送 " + sent + " 条";
+          if (sent > 0) content += "（消耗 " + sent + " 次订阅授权）";
           if (skipped) content += "，跳过 " + skipped + " 条（多为没有授权次数）";
           if (failed) content += "，失败 " + failed + " 条（错误码看云函数日志）";
           if (scanned === 0) content += "。当前没有到点的任务，等到「下一条」时间再试";
