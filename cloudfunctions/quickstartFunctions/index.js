@@ -469,8 +469,19 @@ const getProfile = async () => {
 
 // ========== 订阅消息（微信服务通知）==========
 
+// 集合不存在时自动建一个（云函数有管理员权限，建完重试一次）
+async function ensureReminderCollection() {
+  try {
+    await db.createCollection(REMINDER_COLLECTION);
+    return true;
+  } catch (e) {
+    // 已存在或没有权限，忽略；后续操作会再报出来
+    return false;
+  }
+}
+
 // 客户端授权成功后调用：可发送次数 +1，并用最新课表快照重建排期
-const subscribeReminder = async (event) => {
+const subscribeReminder = async (event, retried) => {
   try {
     const wxContext = cloud.getWXContext();
     const openid = wxContext.OPENID;
@@ -541,6 +552,11 @@ const subscribeReminder = async (event) => {
     return { success: true, data: { quota, pending: safeTasks.length } };
   } catch (e) {
     console.error("subscribeReminder 失败", e);
+    if (isCollectionMissing(e) && !retried) {
+      // 首次遇到集合不存在：自动建集合后重试一次
+      await ensureReminderCollection();
+      return await subscribeReminder(event, true);
+    }
     if (isCollectionMissing(e)) {
       return { success: false, errMsg: "请先在云开发控制台创建 class_reminders 集合" };
     }
@@ -573,7 +589,8 @@ const getReminderStatus = async () => {
     };
   } catch (e) {
     if (isCollectionMissing(e)) {
-      return { success: false, errMsg: "请先在云开发控制台创建 class_reminders 集合" };
+      // 还没订阅过、集合都没建：当作空状态，不打扰用户
+      return { success: true, data: { quota: 0, pending: 0, lastSentAt: null } };
     }
     return { success: false, errMsg: errText(e) };
   }

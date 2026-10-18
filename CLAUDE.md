@@ -176,7 +176,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 云函数 `config.json` 带 `subscribeMessage.send` 权限和每分钟执行的定时触发器；`remindTick` 查找到点任务 → 发消息 → 扣减次数，次数用完的任务标记 `no_quota`
 - 消息点开跳首页；`SUBSCRIBE_MINIPROGRAM_STATE` 默认 `formal`（正式版），测试阶段改成 `developer` / `trial`
 - 一次性订阅：一次授权只能发一条，想连续多条需多次点订阅；若模板是长期订阅，把 `SUBSCRIBE_LONG_TERM` 改成 `true`
-- 前置条件：云开发控制台创建 `class_reminders` 集合（权限「仅创建者可读写」），重新部署云函数；若定时器没生效，右键云函数 →「上传触发器」
+- 前置条件：首次订阅时云函数会自动创建 `class_reminders` 集合；若提示失败，多半是云函数没重新部署。另外要重新部署云函数并确认定时触发器已上传（右键云函数 →「上传触发器」）
 
 ## 关键架构约定
 
