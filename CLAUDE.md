@@ -44,7 +44,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 │       ├── dateHelper.js         # 日期与教学周纯函数：今天、真实周次、逐日日期
 │       ├── freeTime.js           # 空闲时段计算：忙碌区间 → 补集 → 分档
 │       ├── courseConflict.js     # 时间冲突检测：同天 + 节次重叠 + 周次交集
-│       └── classReminder.js      # 上课提醒：下一节课 + 生成手机日历事件
+│       └── classReminder.js      # 上课提醒：下一节课 + 订阅排期任务
 ├── cloudfunctions/
 │   └── quickstartFunctions/      # 入口云函数 (按 event.type 路由分发)
 ├── test-samples/                 # 解析器回归测试 (Node.js 直接运行)
@@ -166,11 +166,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### 9. 上课提醒 (index + settings + classReminder)
 - 首页：上课前 N 分钟（默认 10，设置页可任意填 1~240 分钟，快捷档位 1/5/10/15/30）顶部出现「12 分钟后 · 高等数学 · 博文202」提醒条，点开课程详情；每 30 秒刷新一次
-- 设置页「上课提醒」：一键「同步到手机日历」，用 `wx.addPhoneRepeatCalendar` 把本学期课程写进系统日历（`alarmOffset` 为提前秒数）
-  - 连续周次（如 1-16 周）合并成一条「每周重复」事件
-  - 不连续周次（如单周 1,3,5）拆成单次事件
-- 系统日历提醒不依赖网络；微信服务通知（订阅消息）见第 10 节
-- 纯函数在 `utils/classReminder.js`：`getUpcomingClass` / `buildCalendarEvents`，可 Node 测试
+- 设置页「提前提醒」：只配置提前量；实际提醒通过「微信服务通知（订阅消息）」下发（见第 10 节）
+- 纯函数在 `utils/classReminder.js`：`getUpcomingClass` / `buildSubscribeTasks`，可 Node 测试
 
 ### 10. 微信服务通知（订阅消息）
 - 模板 ID 在 `config/subscribe.js`；模板是「日程提醒」（编号 571），字段映射在 `cloudfunctions/quickstartFunctions/index.js` 顶部的 `SUBSCRIBE_FIELDS`：`thing27` 课程名称 / `thing15` 教师 / `thing10` 地点 / `thing2` 提醒内容 / `time6` 开始时间
@@ -221,7 +218,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - [x] 首页今天周几指示 + 今天列高亮 + 回到本周
 - [x] 引入 git 版本控制（2026-10-18）
 - [x] 课程保存前时间冲突检测（2026-10-18）
-- [x] 上课提醒：首页提醒条 + 一键写入手机日历（2026-10-18）
+- [x] 上课提醒：首页提醒条 + 微信服务通知（2026-10-18）
 - [x] 微信服务通知（订阅消息 + 每分钟定时发送）（2026-10-18）
 
 ## 待清理的 QuickStart 遗留

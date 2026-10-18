@@ -66,21 +66,18 @@
   </view>
 
   <view class="section">
-    <view class="section-title">上课提醒</view>
-    <view class="theme-hint">把本学期课程写进手机日历，上课前按下面的提前量响铃，不依赖网络。</view>
+    <view class="section-title">提前提醒</view>
+    <view class="theme-hint">到点前通过微信服务通知提醒你，提前量可填 {{remindMin}}~{{remindMax}} 分钟。</view>
     <view class="remind-row">
-      <text class="remind-label">提前提醒</text>
+      <text class="remind-label">提前</text>
       <view class="remind-input-wrap">
         <input class="remind-input" type="number" value="{{remindMinutes}}" bindinput="onRemindInput" bindblur="onRemindBlur" />
-        <text class="remind-unit">分钟前</text>
+        <text class="remind-unit">分钟</text>
       </view>
     </view>
     <view class="remind-presets">
       <view class="preset-chip" wx:for="{{remindOptions}}" wx:key="*this" data-minutes="{{item}}" bindtap="useRemindPreset">{{item}}</view>
     </view>
-    <view class="theme-hint">可填 {{remindMin}}~{{remindMax}} 分钟，上课前按这个时间提醒。</view>
-    <button class="setting-btn" bindtap="syncToCalendar" disabled="{{syncing}}">同步到手机日历</button>
-    <view class="theme-hint">连续周次会生成“每周重复”事件；单周课拆成每次一条。改动课表后建议重新同步。</view>
   </view>
 
   <view class="section">

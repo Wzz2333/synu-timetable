@@ -51,7 +51,6 @@ Page({
     remindOptions: classReminder.REMIND_OPTIONS,
     remindMin: classReminder.MIN_LEAD_MINUTES,
     remindMax: classReminder.MAX_LEAD_MINUTES,
-    syncing: false,
     // 微信服务通知（订阅消息）
     reminderQuota: 0,
     reminderPending: 0,
@@ -188,125 +187,6 @@ Page({
             return { timetable: active, courses: res2.result.data || [] };
           });
       });
-  },
-
-  // 一键写入手机日历（系统级提醒）
-  syncToCalendar() {
-    if (this.data.syncing) return;
-    const leadMinutes = classReminder.clampLeadMinutes(this.data.remindMinutes);
-    if (typeof wx.addPhoneCalendar !== "function" && typeof wx.addPhoneRepeatCalendar !== "function") {
-      wx.showModal({
-        title: "无法写入日历",
-        content: "当前微信版本不支持写入手机日历，请升级微信后重试。",
-        showCancel: false,
-      });
-      return;
-    }
-    this.setData({ syncing: true });
-    wx.showLoading({ title: "读取课表", mask: true });
-    this.loadActiveSchedule()
-      .then(({ timetable, courses }) => {
-        wx.hideLoading();
-        const events = classReminder.buildCalendarEvents(courses, timetable, {
-          leadMinutes,
-        });
-        if (events.length === 0) {
-          this.setData({ syncing: false });
-          wx.showToast({ title: "没有可写入的课程", icon: "none" });
-          return;
-        }
-        const repeatCount = events.filter((ev) => ev.repeat).length;
-        wx.showModal({
-          title: "同步到手机日历",
-          content:
-            "将写入 " + events.length + " 条日历事件（其中 " + repeatCount + " 条按周重复），每节课提前 " +
-            leadMinutes + " 分钟提醒。继续吗？",
-          confirmText: "写入",
-          cancelText: "取消",
-          success: (res) => {
-            if (res.confirm) this.writeCalendarEvents(events);
-            else this.setData({ syncing: false });
-          },
-        });
-      })
-      .catch((err) => {
-        wx.hideLoading();
-        this.setData({ syncing: false });
-        wx.showModal({
-          title: "提示",
-          content: (err && err.message) || "读取课表失败",
-          showCancel: false,
-        });
-      });
-  },
-
-  writeCalendarEvents(events) {
-    const page = this;
-    const total = events.length;
-    let done = 0;
-    let ok = 0;
-    let failed = 0;
-    let firstError = "";
-
-    wx.showLoading({ title: "写入 0/" + total, mask: true });
-
-    function next() {
-      if (done >= total) {
-        wx.hideLoading();
-        page.setData({ syncing: false });
-        let content = "成功写入 " + ok + " 条日历事件。";
-        if (failed > 0) {
-          content += "\n失败 " + failed + " 条，多为未授权访问日历，请在手机系统设置中允许微信访问日历后重试。";
-          if (firstError) content += "\n（" + firstError + "）";
-        }
-        wx.showModal({ title: "同步完成", content, showCancel: false });
-        return;
-      }
-
-      const ev = events[done];
-      done += 1;
-      wx.showLoading({ title: "写入 " + done + "/" + total, mask: true });
-
-      const onSuccess = function () {
-        ok += 1;
-        next();
-      };
-      const onFail = function (err) {
-        failed += 1;
-        if (!firstError) firstError = (err && err.errMsg) || "";
-        next();
-      };
-
-      if (ev.repeat && typeof wx.addPhoneRepeatCalendar === "function") {
-        wx.addPhoneRepeatCalendar({
-          title: ev.title,
-          startTime: ev.startTime,
-          endTime: ev.endTime,
-          description: ev.description,
-          location: ev.location,
-          alarm: true,
-          alarmOffset: ev.alarmOffset,
-          repeatInterval: "week",
-          repeatEndTime: ev.repeatEndTime,
-          success: onSuccess,
-          fail: onFail,
-        });
-      } else {
-        wx.addPhoneCalendar({
-          title: ev.title,
-          startTime: ev.startTime,
-          endTime: ev.endTime,
-          description: ev.description,
-          location: ev.location,
-          alarm: true,
-          alarmOffset: ev.alarmOffset,
-          success: onSuccess,
-          fail: onFail,
-        });
-      }
-    }
-
-    next();
   },
 
   // 读取服务通知剩余次数（失败不打扰用户）

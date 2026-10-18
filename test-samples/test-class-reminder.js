@@ -1,4 +1,4 @@
-// 上课提醒回归测试：下一节课 / 周次连续段 / 日历事件生成
+// 上课提醒回归测试：下一节课 / 提前量范围
 // 运行：node test-samples/test-class-reminder.js
 const reminder = require("../miniprogram/utils/classReminder");
 
@@ -27,7 +27,6 @@ function mkCourse(name, slots, extra) {
   );
 }
 
-const timetable = { startDate: "2026-09-07", totalWeeks: 18, showWeekend: true };
 const math = mkCourse("高等数学", [[1, 1, 2]]);
 
 console.log("=== 场景 1：下一节课提醒 ===");
@@ -46,48 +45,7 @@ check("1 分钟内显示马上上课", up2 && up2.text, "马上上课 · 高等�
 const noRoom = mkCourse("高等数学", [[1, 1, 2]], { room: "" });
 check("无教室时文案不空", reminder.getUpcomingClass([noRoom], 7, 1, new Date(2026, 9, 19, 8, 10), 10).text, "10 分钟后 · 高等数学");
 
-console.log("\n=== 场景 2：周次连续段 ===");
-check("连续 + 断开", reminder.groupWeekRuns([1, 2, 3, 5, 6]), [[1, 2, 3], [5, 6]]);
-check("乱序输入", reminder.groupWeekRuns([5, 1, 3, 2]), [[1, 2, 3], [5]]);
-
-console.log("\n=== 场景 3：日历事件（连续周 → 每周重复）===");
-const course4 = mkCourse("高等数学", [[1, 1, 2]], { weeks: ["1", "2", "3", "4"] });
-const events4 = reminder.buildCalendarEvents([course4], timetable, { leadMinutes: 10 });
-check("事件数", events4.length, 1);
-const e = events4[0];
-check("标题", e.title, "高等数学 · 博文202");
-check("开始时间（2026-09-07 08:20）", e.startTime, Math.floor(new Date(2026, 8, 7, 8, 20).getTime() / 1000));
-check("结束时间（09:55）", e.endTime, Math.floor(new Date(2026, 8, 7, 9, 55).getTime() / 1000));
-check("重复", e.repeat, true);
-check("重复周期", e.repeatInterval, "week");
-check("重复截止（2026-09-28 09:55）", e.repeatEndTime, Math.floor(new Date(2026, 8, 28, 9, 55).getTime() / 1000));
-check("提前量（10 分钟 = 600 秒）", e.alarmOffset, 600);
-check("提醒开关", e.alarm, true);
-check("首末日期", [e.firstDateText, e.lastDateText], ["9/7", "9/28"]);
-
-console.log("\n=== 场景 4：不连续周 → 拆成单次事件 ===");
-const odd = mkCourse("体育", [[2, 3, 4]], { weeks: ["1", "3", "5"] });
-const oddEvents = reminder.buildCalendarEvents([odd], timetable, { leadMinutes: 5 });
-check("事件数", oddEvents.length, 3);
-check("全部非重复", oddEvents.every((ev) => ev.repeat === false), true);
-check("提前量 5 分钟", oddEvents[0].alarmOffset, 300);
-check("首条日期", oddEvents[0].firstDateText, "9/8");
-
-console.log("\n=== 场景 5：混合周次 ===");
-const mixed = mkCourse("实验课", [[3, 5, 6]], { weeks: ["1", "2", "5", "6"] });
-const mixedEvents = reminder.buildCalendarEvents([mixed], timetable, {});
-const mixedRuns = mixedEvents.map((ev) => ev.weeks.join("-"));
-check("两段重复事件", mixedRuns, ["1-2", "5-6"]);
-
-console.log("\n=== 场景 6：边界 ===");
-check("没有开学日期", reminder.buildCalendarEvents([math], { startDate: "" }, {}), []);
-check("超出总周数不生成", reminder.buildCalendarEvents([math], { startDate: "2026-09-07", totalWeeks: 0 }, {}).length, 1);
-const late = mkCourse("晚课", [[1, 1, 2]], { weeks: ["19"] });
-check("第 19 周被 totalWeeks 过滤", reminder.buildCalendarEvents([late], timetable, {}).length, 0);
-const multi = mkCourse("多时段课", [[1, 1, 2], [3, 5, 6]], { weeks: ["1", "2"] });
-check("多时段各生成事件", reminder.buildCalendarEvents([multi], timetable, {}).length, 2);
-
-console.log("\n=== 场景 7：提前量文案与范围 ===");
+console.log("\n=== 场景 2：提前量文案与范围 ===");
 check("10 分钟", reminder.formatLead(10), "10 分钟");
 check("默认 10 分钟", reminder.DEFAULT_LEAD_MINUTES, 10);
 check("快捷档位", reminder.REMIND_OPTIONS, [1, 5, 10, 15, 30]);

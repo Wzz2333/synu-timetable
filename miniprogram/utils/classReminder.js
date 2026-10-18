@@ -4,7 +4,6 @@
 
 const synu = require('../config/synu');
 const dateHelper = require('./dateHelper');
-const weekHelper = require('./weekHelper');
 const { getActiveCourses, getCourseWeekNumbers, normalizeSlots } = require('./courseHelper');
 
 const SLOT_TIMES = synu.SLOT_TIMES;
@@ -81,24 +80,6 @@ function getUpcomingClass(courses, week, dayIndex, now, leadMinutes) {
   return best;
 }
 
-/**
- * 把周次数组切成“连续段”，用于决定能否用「每周重复」的日历事件
- * 例：[1,2,3,5,6] → [[1,2,3],[5,6]]
- */
-function groupWeekRuns(weeks) {
-  const sorted = (weeks || [])
-    .map((w) => parseInt(w, 10))
-    .filter((n) => !isNaN(n) && n > 0)
-    .sort((a, b) => a - b);
-  const runs = [];
-  sorted.forEach((week) => {
-    const last = runs[runs.length - 1];
-    if (last && week === last[last.length - 1] + 1) last.push(week);
-    else runs.push([week]);
-  });
-  return runs;
-}
-
 function makeDateTime(day, hhmm) {
   const parts = String(hhmm).split(':');
   return new Date(
@@ -110,65 +91,6 @@ function makeDateTime(day, hhmm) {
     0,
     0
   );
-}
-
-/**
- * 生成写入手机日历的事件列表
- * - 连续周次（如 1-16 周）合并成一条「每周重复」事件
- * - 不连续周次（如单周 1,3,5...）拆成多次单次事件
- * @param {Array} courses 课表全部课程
- * @param {Object} timetable { startDate, totalWeeks }
- * @param {Object} [options] { leadMinutes }
- */
-function buildCalendarEvents(courses, timetable, options) {
-  const opts = options || {};
-  const leadMinutes = clampLeadMinutes(opts.leadMinutes);
-  const startDate = dateHelper.parseDate(timetable && timetable.startDate);
-  if (!startDate) return [];
-  const totalWeeks = parseInt(timetable.totalWeeks, 10) || 18;
-
-  const events = [];
-  (courses || []).forEach((course) => {
-    const weeks = getCourseWeekNumbers(course).filter((w) => w >= 1 && w <= totalWeeks);
-    if (!weeks.length) return;
-
-    normalizeSlots(course).forEach((slot) => {
-      const startTime = SLOT_TIMES[slot.startSlot - 1];
-      const endTime = SLOT_TIMES[slot.endSlot - 1];
-      if (!startTime || !endTime) return;
-
-      groupWeekRuns(weeks).forEach((run) => {
-        const firstDate = dateHelper.getDateOfWeekDay(startDate, run[0], slot.day);
-        const lastDate = dateHelper.getDateOfWeekDay(startDate, run[run.length - 1], slot.day);
-        if (!firstDate || !lastDate) return;
-
-        const startAt = makeDateTime(firstDate, startTime[0]);
-        const endAt = makeDateTime(firstDate, endTime[1]);
-        const lastEndAt = makeDateTime(lastDate, endTime[1]);
-
-        events.push({
-          title: course.name + (course.room ? ' · ' + course.room : ''),
-          location: course.room || '',
-          description: [course.teacher, '第' + slot.startSlot + '-' + slot.endSlot + '节', weekHelper.formatWeeks(run)]
-            .filter(Boolean)
-            .join(' · '),
-          startTime: Math.floor(startAt.getTime() / 1000),
-          endTime: Math.floor(endAt.getTime() / 1000),
-          alarm: true,
-          alarmOffset: leadMinutes * 60,
-          repeat: run.length > 1,
-          repeatInterval: 'week',
-          repeatEndTime: Math.floor(lastEndAt.getTime() / 1000),
-          weeks: run.slice(),
-          firstDateText: dateHelper.formatMonthDay(firstDate),
-          lastDateText: dateHelper.formatMonthDay(lastDate),
-        });
-      });
-    });
-  });
-
-  events.sort((a, b) => a.startTime - b.startTime);
-  return events;
 }
 
 /**
@@ -238,7 +160,5 @@ module.exports = {
   formatLead,
   formatUpcomingText,
   getUpcomingClass,
-  groupWeekRuns,
-  buildCalendarEvents,
   buildSubscribeTasks,
 };
