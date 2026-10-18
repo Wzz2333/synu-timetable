@@ -78,23 +78,18 @@
     <view class="remind-presets">
       <view class="preset-chip" wx:for="{{remindOptions}}" wx:key="*this" data-minutes="{{item}}" bindtap="useRemindPreset">{{item}}</view>
     </view>
-    <view class="theme-hint">可填 {{remindMin}}~{{remindMax}} 分钟。测试时设 1 分钟，配合「立即发一条测试提醒」马上能看到效果。</view>
+    <view class="theme-hint">可填 {{remindMin}}~{{remindMax}} 分钟，上课前按这个时间提醒。</view>
     <button class="setting-btn" bindtap="syncToCalendar" disabled="{{syncing}}">同步到手机日历</button>
     <view class="theme-hint">连续周次会生成“每周重复”事件；单周课拆成每次一条。改动课表后建议重新同步。</view>
   </view>
 
   <view class="section">
     <view class="section-title">微信服务通知</view>
-    <view class="theme-hint">微信服务通知是「一次授权一条」：点一次订阅，未来 30 天内到点会收到一条。首次授权时勾选「总是保持以上选择」，之后每点一次直接记 1 次、不再弹窗；多点几次就能攒着。</view>
+    <view class="theme-hint">到点前会收到一条微信服务通知。微信规则是「一次授权一条」：点一次订阅记 1 次；首次授权时可勾选「总是保持以上选择」，之后每点一次直接记 1 次、不再弹窗，多点几次就能攒着。</view>
     <view class="remind-status">{{reminderStatusLoading ? '读取中…' : reminderStatusText}}</view>
     <view class="remind-warn" wx:if="{{reminderWarnText}}">{{reminderWarnText}}</view>
-    <view class="remind-tick {{reminderTickWarn ? 'warn' : ''}}" wx:if="{{reminderTickText}}">{{reminderTickText}}</view>
     <button class="setting-btn" bindtap="subscribeReminder">订阅一次提醒</button>
-    <button class="setting-btn ghost-btn" bindtap="sendTestReminder">立即发一条测试提醒</button>
-    <button class="setting-btn ghost-btn" bindtap="refreshReminderSchedule">刷新排期（不消耗授权）</button>
-    <button class="setting-btn ghost-btn" bindtap="checkNow">立即执行一次到点检查</button>
-    <view class="theme-hint">「测试提醒」和「到点检查」都会消耗订阅授权（发 1 条耗 1 次）；真实提醒到点前别把次数用光。</view>
-    <view class="theme-hint">改完课表或提前量记得点「刷新排期」；到点自动发送依赖云函数的定时触发器（部署后右键云函数 →「上传触发器」确认一次）。</view>
+    <button class="setting-btn ghost-btn" bindtap="refreshReminderSchedule">改完课表后刷新排期</button>
   </view>
 
   <view class="section">

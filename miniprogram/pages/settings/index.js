@@ -7,20 +7,6 @@ function pad2(n) {
   return n < 10 ? "0" + n : "" + n;
 }
 
-function formatDateTimeText(date) {
-  return (
-    date.getFullYear() +
-    "年" +
-    (date.getMonth() + 1) +
-    "月" +
-    date.getDate() +
-    "日 " +
-    pad2(date.getHours()) +
-    ":" +
-    pad2(date.getMinutes())
-  );
-}
-
 function formatShortDateTime(timestamp) {
   const date = new Date(timestamp);
   return (
@@ -71,8 +57,6 @@ Page({
     reminderPending: 0,
     reminderStatusText: "",
     reminderWarnText: "",
-    reminderTickText: "",
-    reminderTickWarn: false,
     reminderStatusLoading: false,
   },
 
@@ -337,21 +321,6 @@ Page({
         const parts = [quota > 0 ? "剩余 " + quota + " 次" : "剩余 0 次"];
         if (pending > 0) parts.push("待发 " + pending + " 条");
         if (data.nextSendAt) parts.push("下一条 " + formatShortDateTime(data.nextSendAt));
-        let tickText = "定时器还没有运行记录：请确认已上传触发器（右键云函数 →「上传触发器」）";
-        let tickWarn = true;
-        if (data.lastTickAt) {
-          const stale = Date.now() - data.lastTickAt > 5 * 60 * 1000;
-          tickText =
-            "定时器最近运行 " +
-            formatShortDateTime(data.lastTickAt) +
-            "（扫描 " +
-            (data.lastTickScanned || 0) +
-            " 条 / 发送 " +
-            (data.lastTickSent || 0) +
-            " 条）";
-          tickWarn = stale;
-          if (stale) tickText += "，超过 5 分钟没运行，检查触发器";
-        }
         this.setData({
           reminderStatusLoading: false,
           reminderQuota: quota,
@@ -361,8 +330,6 @@ Page({
             quota <= 0 && pending > 0
               ? "次数不够，到点不会发送；点「订阅一次提醒」补 1 次授权"
               : "",
-          reminderTickText: tickText,
-          reminderTickWarn: tickWarn,
         });
       })
       .catch((err) => {
@@ -371,91 +338,6 @@ Page({
           reminderStatusLoading: false,
           reminderStatusText: "状态读取失败（云函数可能还没重新部署）",
           reminderWarnText: "",
-          reminderTickText: "",
-          reminderTickWarn: true,
-        });
-      });
-  },
-
-  // 立即发一条测试提醒（消耗 1 次授权），用来验证模板字段是否配好
-  sendTestReminder() {
-    if (!this.data.reminderQuota) {
-      wx.showModal({
-        title: "先订阅一次",
-        content: "测试提醒同样会消耗一次订阅授权，请先点上面的「订阅一次提醒」。",
-        showCancel: false,
-      });
-      return;
-    }
-    wx.showLoading({ title: "发送中", mask: true });
-    wx.cloud
-      .callFunction({
-        name: "quickstartFunctions",
-        data: {
-          type: "sendTestReminder",
-          data: { timeFullText: formatDateTimeText(new Date()) },
-        },
-      })
-      .then((res) => {
-        wx.hideLoading();
-        const result = res && res.result;
-        if (result && result.success) {
-          const remaining = result.data && typeof result.data.remaining === "number" ? result.data.remaining : "?";
-          wx.showToast({ title: "已发送（剩余 " + remaining + " 次授权）", icon: "none" });
-          this.loadReminderStatus();
-        } else {
-          wx.showModal({
-            title: "发送失败",
-            content: (result && result.errMsg) || "请查看云函数日志",
-            showCancel: false,
-          });
-        }
-      })
-      .catch((err) => {
-        wx.hideLoading();
-        wx.showModal({
-          title: "发送失败",
-          content: (err && err.message) || "网络错误",
-          showCancel: false,
-        });
-      });
-  },
-
-  // 立即执行一次到点检查（只处理自己到点的任务），用来区分“没排上”还是“定时器没跑”
-  checkNow() {
-    wx.showLoading({ title: "检查中", mask: true });
-    wx.cloud
-      .callFunction({ name: "quickstartFunctions", data: { type: "checkMyReminders" } })
-      .then((res) => {
-        wx.hideLoading();
-        const result = res && res.result;
-        if (result && result.success) {
-          const data = result.data || {};
-          const scanned = data.scanned || 0;
-          const sent = data.sent || 0;
-          const skipped = data.skipped || 0;
-          const failed = data.failed || 0;
-          let content = "扫描 " + scanned + " 条，发送 " + sent + " 条";
-          if (sent > 0) content += "（消耗 " + sent + " 次订阅授权）";
-          if (skipped) content += "，跳过 " + skipped + " 条（多为没有授权次数）";
-          if (failed) content += "，失败 " + failed + " 条（错误码看云函数日志）";
-          if (scanned === 0) content += "。当前没有到点的任务，等到「下一条」时间再试";
-          wx.showModal({ title: "到点检查结果", content, showCancel: false });
-          this.loadReminderStatus();
-        } else {
-          wx.showModal({
-            title: "检查失败",
-            content: (result && result.errMsg) || "请查看云函数日志",
-            showCancel: false,
-          });
-        }
-      })
-      .catch((err) => {
-        wx.hideLoading();
-        wx.showModal({
-          title: "检查失败",
-          content: (err && err.message) || "网络错误",
-          showCancel: false,
         });
       });
   },

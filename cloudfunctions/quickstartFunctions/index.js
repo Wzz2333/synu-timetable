@@ -648,8 +648,6 @@ const getReminderStatus = async () => {
       .orderBy("sendAt", "asc")
       .limit(1)
       .get();
-    const tickRes = await db.collection(REMINDER_COLLECTION).where({ type: "tick" }).get();
-    const tickDoc = tickRes.data[0] || null;
     return {
       success: true,
       data: {
@@ -657,9 +655,6 @@ const getReminderStatus = async () => {
         pending: (pendingRes && pendingRes.total) || 0,
         lastSentAt: sentRes.data[0] ? sentRes.data[0].sendAt : null,
         nextSendAt: nextRes.data[0] ? nextRes.data[0].sendAt : null,
-        lastTickAt: tickDoc ? tickDoc.lastTickAt : null,
-        lastTickScanned: tickDoc ? tickDoc.scanned || 0 : 0,
-        lastTickSent: tickDoc ? tickDoc.sent || 0 : 0,
       },
     };
   } catch (e) {
@@ -672,9 +667,6 @@ const getReminderStatus = async () => {
           pending: 0,
           lastSentAt: null,
           nextSendAt: null,
-          lastTickAt: null,
-          lastTickScanned: 0,
-          lastTickSent: 0,
         },
       };
     }
@@ -682,93 +674,17 @@ const getReminderStatus = async () => {
   }
 };
 
-// 立即发一条测试提醒（消耗一次授权），用于验证模板字段与权限是否配好
-const sendTestReminder = async (event) => {
-  try {
-    const openid = cloud.getWXContext().OPENID;
-    if (!openid) return { success: false, errMsg: "未登录或会话失效" };
-
-    let quotaDoc = null;
-    try {
-      const quotaRes = await db.collection(REMINDER_COLLECTION).where({ type: "quota", _openid: openid }).get();
-      quotaDoc = quotaRes.data[0];
-    } catch (e) {
-      if (isCollectionMissing(e)) {
-        return { success: false, errMsg: "还没有订阅记录，请先点「订阅一次提醒」" };
-      }
-      throw e;
-    }
-    const count = quotaDoc ? quotaDoc.count || 0 : 0;
-    if (!SUBSCRIBE_LONG_TERM && count <= 0) {
-      return { success: false, errMsg: "没有可用的订阅授权，请先点「订阅一次提醒」" };
-    }
-
-    const timeText = clipText((event.data && event.data.timeFullText) || "", 20) || "现在";
-    const message = buildReminderMessage({
-      courseName: "测试课程",
-      teacher: "测试老师",
-      room: "测试地点",
-      remark: "这是一条测试提醒",
-      timeFullText: timeText,
-      timeText: timeText,
-    });
-
-    await cloud.openapi.subscribeMessage.send({
-      touser: openid,
-      templateId: SUBSCRIBE_TEMPLATE_ID,
-      page: "pages/index/index",
-      data: message,
-      miniprogramState: SUBSCRIBE_MINIPROGRAM_STATE,
-    });
-
-    let remaining = count;
-    if (!SUBSCRIBE_LONG_TERM && quotaDoc) {
-      remaining = Math.max(0, count - 1);
-      await db.collection(REMINDER_COLLECTION).doc(quotaDoc._id).update({
-        data: { count: remaining, updateTime: db.serverDate() },
-      });
-    }
-
-    return { success: true, data: { remaining } };
-  } catch (e) {
-    console.error("sendTestReminder 失败", e);
-    return { success: false, errMsg: errText(e) };
-  }
-};
-
-// 记录最近一次定时器运行情况，方便在设置页确认触发器是否在工作
-async function recordTick(scanned, sent, skipped, failed) {
-  try {
-    const res = await db.collection(REMINDER_COLLECTION).where({ type: "tick" }).get();
-    const data = {
-      type: "tick",
-      lastTickAt: Date.now(),
-      scanned,
-      sent,
-      skipped,
-      failed,
-      updateTime: db.serverDate(),
-    };
-    if (res.data[0]) {
-      await db.collection(REMINDER_COLLECTION).doc(res.data[0]._id).update({ data });
-    } else {
-      await db.collection(REMINDER_COLLECTION).add({ data });
-    }
-  } catch (e) {
-    // 记录失败不影响发送
-  }
-}
-
 // 定时触发器每分钟跑一次：把到点的任务发出去
-// 传 onlyOpenid 时只处理该用户的任务（设置页“立即执行一次到点检查”用）
-const remindTick = async (onlyOpenid) => {
+const remindTick = async () => {
   let scanned = 0;
   try {
     const _ = db.command;
     const now = Date.now();
-    const where = { type: "task", status: "pending", sendAt: _.lte(now) };
-    if (onlyOpenid) where._openid = onlyOpenid;
-    const res = await db.collection(REMINDER_COLLECTION).where(where).limit(50).get();
+    const res = await db
+      .collection(REMINDER_COLLECTION)
+      .where({ type: "task", status: "pending", sendAt: _.lte(now) })
+      .limit(50)
+      .get();
     const tasks = res.data || [];
     scanned = tasks.length;
     let sent = 0;
@@ -832,26 +748,15 @@ const remindTick = async (onlyOpenid) => {
       }
     }
 
-    console.log("[remindTick]", onlyOpenid ? "user" : "timer", "scanned", scanned, "sent", sent, "skipped", skipped, "failed", failed);
-    await recordTick(scanned, sent, skipped, failed);
+    console.log("[remindTick] timer scanned", scanned, "sent", sent, "skipped", skipped, "failed", failed);
     return { success: true, data: { scanned, sent, skipped, failed } };
   } catch (e) {
     if (isCollectionMissing(e)) {
-      await recordTick(0, 0, 0, 1);
       return { success: true, data: { scanned: 0, sent: 0, skipped: 0, failed: 0, note: "集合不存在" } };
     }
     console.error("remindTick 失败", e);
-    // 即使失败也记一次，设置页能看出定时器确实被调用了
-    await recordTick(scanned, 0, 0, 1);
     return { success: false, errMsg: errText(e) };
   }
-};
-
-// 设置页「立即执行一次到点检查」：只处理当前用户到点的任务，并返回结果
-const checkMyReminders = async () => {
-  const openid = cloud.getWXContext().OPENID;
-  if (!openid) return { success: false, errMsg: "未登录或会话失效" };
-  return await remindTick(openid);
 };
 
 // const getOpenId = require('./getOpenId/index');
@@ -919,12 +824,8 @@ exports.main = async (event, context) => {
       return await subscribeReminder(event);
     case "getReminderStatus":
       return await getReminderStatus();
-    case "sendTestReminder":
-      return await sendTestReminder(event);
     case "rescheduleReminder":
       return await rescheduleReminder(event);
-    case "checkMyReminders":
-      return await checkMyReminders();
     case "remindTick":
       // 手动触发一次（调试用：先手动排期，再调它就能立刻发）
       return await remindTick();

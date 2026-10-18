@@ -208,24 +208,8 @@
   margin-bottom: 6rpx;
 }
 
-.remind-status-sub {
-  font-size: 22rpx;
-  color: #999;
-  margin-bottom: 16rpx;
-}
-
 .remind-warn {
   margin-bottom: 16rpx;
   font-size: 22rpx;
-  color: #e6a23c;
-}
-
-.remind-tick {
-  margin-bottom: 16rpx;
-  font-size: 22rpx;
-  color: #888;
-}
-
-.remind-tick.warn {
   color: #e6a23c;
 }
