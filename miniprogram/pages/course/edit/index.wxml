@@ -57,7 +57,7 @@
 
   <!-- 周次 -->
   <view class="form-group">
-    <view class="form-label">教学周次 · 已选{{form.weeks.length}}周</view>
+    <view class="form-label">教学周次 · {{weeksText}}</view>
     <view class="form-row">
       <view class="form-half">
         <view class="mini-label">起始周</view>

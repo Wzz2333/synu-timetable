@@ -163,6 +163,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 有冲突时弹窗列出最多 3 门课与具体时间（如「与《大学物理》周三 第3-4节，第1-16周冲突」），可选「仍然保存」或「返回修改」；编辑自己时自动排除
 - 周次判定：`weeks` 数组优先（单周课为 [1,3,5...]），否则按 startWeek/endWeek + 单双周展开
 - 读取已有课程失败时降级为「未做冲突检查，是否仍然保存」，不阻断保存
+- 提交前若没在「详细设置」手工勾选过周次，会按起始周 / 结束周 + 单双周重算一次，避免「输入了周次但没失焦就直接保存」导致周次仍是默认 1-18；冲突弹窗首行会显示「本次课程：第 X 周」，并列出重叠周次
 - 纯函数在 `utils/courseConflict.js`，与编辑页解耦、可单独测试
 
 ### 9. 上课提醒 (index + settings + classReminder)

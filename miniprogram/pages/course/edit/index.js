@@ -2,6 +2,7 @@
 const synu = require("../../../config/synu");
 const weekHelper = require("../../../utils/weekHelper");
 const { findConflicts, formatConflicts } = require("../../../utils/courseConflict");
+const { getCourseWeekNumbers } = require("../../../utils/courseHelper");
 const app = getApp();
 
 Page({
@@ -33,6 +34,9 @@ Page({
     bgOpacity: 0,
     // 详细设置用
     modalWeeks: [],
+    // 周次是否在“详细设置”里手工勾选过（手工勾选后不再按起止周重算）
+    weeksCustomized: false,
+    weeksText: "",
   },
 
   onLoad(options) {
@@ -68,7 +72,14 @@ Page({
       if (options.timetableId) form.timetableId = options.timetableId;
       form.weeks = this.buildWeeks(form.startWeek, form.endWeek, form.weekType);
     }
-    this.setData({ isEdit: !!options.id, courseId: options.id || "", form, weekTypeIndex });
+    this.setData({
+      isEdit: !!options.id,
+      courseId: options.id || "",
+      form,
+      weekTypeIndex,
+      weeksCustomized: form.weekType === "custom",
+      weeksText: weekHelper.formatWeeks(form.weeks),
+    });
   },
 
   onInput(e) {
@@ -127,7 +138,11 @@ Page({
     const end = parseInt(this.data.form.endWeek) || 18;
     if (start > end) { wx.showToast({ title: "起始周不能大于结束周", icon: "none" }); return; }
     const weeks = this.buildWeeks(start, end, this.data.form.weekType);
-    this.setData({ 'form.weeks': weeks });
+    this.setData({
+      'form.weeks': weeks,
+      weeksCustomized: false,
+      weeksText: weekHelper.formatWeeks(weeks),
+    });
   },
 
   onWeekTypeChange(e) {
@@ -136,7 +151,13 @@ Page({
     const start = parseInt(this.data.form.startWeek) || 1;
     const end = parseInt(this.data.form.endWeek) || 18;
     const weeks = this.buildWeeks(start, end, weekType);
-    this.setData({ weekTypeIndex: idx, 'form.weekType': weekType, 'form.weeks': weeks });
+    this.setData({
+      weekTypeIndex: idx,
+      'form.weekType': weekType,
+      'form.weeks': weeks,
+      weeksCustomized: false,
+      weeksText: weekHelper.formatWeeks(weeks),
+    });
   },
 
   // ===== 详细设置弹窗 =====
@@ -163,29 +184,30 @@ Page({
 
   hideWeekModal() {
     const weeks = this.data.displayWeeks.filter(w => w.selected).map(w => w.value);
-    this.setData({ showWeekModal: false });
-    if (weeks.length > 0) {
-      const nums = weeks.map(w => parseInt(w));
+    if (weeks.length === 0) {
       this.setData({
+        showWeekModal: false,
         'form.weeks': weeks,
-        'form.startWeek': Math.min(...nums),
-        'form.endWeek': Math.max(...nums),
+        weeksCustomized: true,
+        weeksText: "未选择周次",
       });
-    } else {
-      this.setData({ 'form.weeks': weeks });
       return;
     }
-    // 检测 weekType
-    const start = parseInt(this.data.form.startWeek) || 1;
-    const end = parseInt(this.data.form.endWeek) || 18;
+    const nums = weeks.map(w => parseInt(w));
+    const start = Math.min(...nums);
+    const end = Math.max(...nums);
     const detected = this.detectWeekType(start, end, weeks);
-    if (detected !== this.data.form.weekType) {
-      const idx = this.data.weekTypeValues.indexOf(detected);
-      this.setData({
-        'form.weekType': detected,
-        weekTypeIndex: idx >= 0 ? idx : this.data.weekTypeValues.indexOf("custom"),
-      });
-    }
+    const idx = this.data.weekTypeValues.indexOf(detected);
+    this.setData({
+      showWeekModal: false,
+      'form.weeks': weeks,
+      'form.startWeek': start,
+      'form.endWeek': end,
+      'form.weekType': detected,
+      weekTypeIndex: idx >= 0 ? idx : this.data.weekTypeValues.indexOf("custom"),
+      weeksCustomized: true,
+      weeksText: weekHelper.formatWeeks(weeks),
+    });
   },
 
   toggleModalWeek(e) {
@@ -223,6 +245,16 @@ Page({
       if (s.startSlot >= s.endSlot) { wx.showToast({ title: "结束节次必须大于起始节次", icon: "none" }); return; }
     }
     if (parseInt(form.startWeek) > parseInt(form.endWeek)) { wx.showToast({ title: "起始周不能晚于结束周", icon: "none" }); return; }
+    // 起止周改过但输入框还没失焦时，提交前按起止周 + 单双周重算一次，避免周次和界面不一致
+    if (!this.data.weeksCustomized) {
+      const start = parseInt(form.startWeek) || 1;
+      const end = parseInt(form.endWeek) || 18;
+      if (start <= end) {
+        const weeks = this.buildWeeks(start, end, form.weekType);
+        form.weeks = weeks;
+        this.setData({ 'form.weeks': weeks, weeksText: weekHelper.formatWeeks(weeks) });
+      }
+    }
     this.checkConflictThenSave();
   },
 
@@ -241,9 +273,13 @@ Page({
           this.saveCourse();
           return;
         }
+        const candidateWeeksText = weekHelper.formatWeeks(getCourseWeekNumbers(candidate));
         wx.showModal({
           title: "时间冲突",
-          content: formatConflicts(conflicts) + "\n\n仍然要保存吗？",
+          content:
+            "本次课程：" + candidateWeeksText + "\n" +
+            formatConflicts(conflicts) +
+            "\n\n（只统计周次有交集的部分）仍然要保存吗？",
           confirmText: "仍然保存",
           cancelText: "返回修改",
           success: (res) => {

@@ -42,6 +42,9 @@ check("文案", formatConflicts(r1), "与《大学物理》周三 第3-4节，�
 
 console.log("\n=== 场景 2：周次不重叠 ===");
 check("1-16 周 vs 17-18 周", findConflicts([physics], mkCourse("作业课", [[3, 3, 4]], { startWeek: 17, endWeek: 18 })).length, 0);
+const otherWeekCourse = mkCourse("别周的课", [[3, 3, 4]], { weeks: ["8", "9"] });
+check("只本周(7) vs 其他周(8,9) 不冲突", findConflicts([otherWeekCourse], mkCourse("本周课", [[3, 3, 4]], { weeks: ["7"] })).length, 0);
+check("新建默认 1-18 周会冲突（交集 8-9 周）", findConflicts([otherWeekCourse], mkCourse("新课", [[3, 3, 4]])).length, 1);
 
 console.log("\n=== 场景 3：单周课 vs 双周课 ===");
 check("单周已有 + 双周候选", findConflicts([pe], mkCourse("作业课", [[3, 3, 4]], { weeks: ["2", "4", "6"] })).length, 0);
