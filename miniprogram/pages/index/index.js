@@ -1,5 +1,8 @@
 // pages/index/index.js
 const synu = require("../../config/synu");
+const dateHelper = require("../../utils/dateHelper");
+const freeTime = require("../../utils/freeTime");
+const { getActiveCourses } = require("../../utils/courseHelper");
 const COURSE_COLORS = synu.COURSE_COLORS;
 const app = getApp();
 
@@ -7,6 +10,9 @@ Page({
   data: {
     timetable: null,
     currentWeek: 1,
+    realWeek: 1,
+    isRealWeek: false,
+    inSemester: false,
     weekCourses: [],
     displayDayNames: synu.WEEKDAY_NAMES,
     weekdayNames: synu.WEEKDAY_NAMES,
@@ -22,6 +28,13 @@ Page({
     fontClass: "",
     borderClass: "",
     showCreateTip: false,
+    // 今天指示
+    todayIndex: 1,
+    todayName: "",
+    todayMonthDay: "",
+    todayColumn: -1,
+    weekendHidden: false,
+    freeSummaryText: "",
   },
 
   onShow() {
@@ -54,6 +67,13 @@ Page({
 
   // 确保有当前课表
   ensureTimetable() {
+    const today = dateHelper.getToday();
+    this.setData({
+      todayIndex: today.weekdayIndex,
+      todayName: today.name,
+      todayMonthDay: today.monthDay,
+    });
+
     wx.cloud
       .callFunction({
         name: "quickstartFunctions",
@@ -77,23 +97,38 @@ Page({
           app.globalData.activeTimetableId = activeId;
         }
         if (!timetable) {
-          // 没有课表：显示新建提示
-          this.setData({ showCreateTip: true, timetable: null, weekCourses: [], dates: [] });
+          // 没有课表：显示新建提示，今天条仍然显示
+          this.setData({
+            showCreateTip: true,
+            timetable: null,
+            weekCourses: [],
+            dates: [],
+            currentWeek: 1,
+            realWeek: 1,
+            isRealWeek: false,
+            inSemester: false,
+            todayColumn: -1,
+            weekendHidden: false,
+            freeSummaryText: "",
+          });
           return;
         }
 
-        const currentWeek = synu.getCurrentWeek({
-          startDate: timetable.startDate,
-          totalWeeks: timetable.totalWeeks,
-        });
-
+        const totalWeeks = parseInt(timetable.totalWeeks, 10) || 18;
+        const realWeek = dateHelper.getClampedWeek(timetable.startDate, totalWeeks);
+        const rawWeek = dateHelper.getRealWeek(timetable.startDate);
+        const inSemester = rawWeek >= 1 && rawWeek <= totalWeeks;
         const dayCount = timetable.showWeekend === false ? 5 : 7;
+
         this.setData({
           timetable,
-          currentWeek,
+          currentWeek: realWeek,
+          realWeek,
+          inSemester,
           displayDayNames: synu.WEEKDAY_NAMES.slice(0, dayCount),
           showCreateTip: false,
         });
+        this.updateTodayStatus();
         this.updateDates();
         this.loadCourses();
       })
@@ -103,24 +138,31 @@ Page({
       });
   },
 
+  // 今天列高亮 / “回到本周” 的显隐
+  updateTodayStatus() {
+    const { timetable, currentWeek, realWeek, inSemester, todayIndex } = this.data;
+    if (!timetable) {
+      this.setData({ isRealWeek: false, todayColumn: -1, weekendHidden: false });
+      return;
+    }
+    const dayCount = timetable.showWeekend === false ? 5 : 7;
+    const isRealWeek = inSemester && currentWeek === realWeek;
+    this.setData({
+      isRealWeek,
+      todayColumn: isRealWeek && todayIndex <= dayCount ? todayIndex - 1 : -1,
+      weekendHidden: todayIndex > dayCount,
+    });
+  },
+
   // 更新日期栏
   updateDates() {
     const timetable = this.data.timetable;
     const week = this.data.currentWeek;
     if (!timetable || !timetable.startDate) return;
     const dayCount = timetable.showWeekend === false ? 5 : 7;
-    const start = new Date(timetable.startDate);
-    // 找到开学那周的周一
-    const dayOfWeek = start.getDay();
-    const daysToMon = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-    const monday0 = new Date(start.getTime() - daysToMon * 86400000);
-    // 当前周的周一
-    const monday = new Date(monday0.getTime() + (week - 1) * 7 * 86400000);
-    const dates = [];
-    for (let i = 0; i < dayCount; i++) {
-      const d = new Date(monday.getTime() + i * 86400000);
-      dates.push(`${d.getMonth() + 1}/${d.getDate()}`);
-    }
+    const dates = dateHelper
+      .getWeekDates(timetable.startDate, week, dayCount)
+      .map((d) => d.monthDay);
     this.setData({ dates });
   },
 
@@ -150,8 +192,11 @@ Page({
       })
       .then((res) => {
         if (res.result.success) {
-          const grid = this.buildGrid(res.result.data, currentWeek);
+          const allCourses = res.result.data || [];
+          this._allCourses = allCourses;
+          const grid = this.buildGrid(allCourses, currentWeek);
           this.setData({ weekCourses: grid });
+          this.loadTodayFree();
         }
       })
       .catch((err) => {
@@ -159,18 +204,28 @@ Page({
       });
   },
 
-  // 将课程数据转换为 7天×12节 的网格
+  // 今天还剩多少空闲（永远按真实周次算，不受当前浏览周影响）
+  loadTodayFree() {
+    const { timetable, realWeek, todayIndex, inSemester } = this.data;
+    if (!timetable || !this._allCourses || !inSemester) {
+      this.setData({ freeSummaryText: "" });
+      return;
+    }
+    const result = freeTime.analyzeToday(this._allCourses, realWeek, todayIndex);
+    if (result.studyFreeMin > 0) {
+      this.setData({
+        freeSummaryText: "空闲 " + freeTime.formatDuration(result.studyFreeMin),
+      });
+    } else {
+      this.setData({ freeSummaryText: "今天排满" });
+    }
+  },
+
+  // 将课程数据转换为 7天×10节 的网格
   buildGrid(courses, currentWeek) {
     const slotCount = this.data.slotCount;
-    const dayCount = this.data.timetable && this.data.timetable.showWeekend ? 7 : 5;
-    const activeCourses = courses.filter((c) => {
-      if (c.weeks && c.weeks.length > 0) return c.weeks.indexOf(String(currentWeek)) >= 0;
-      if (c.startWeek > currentWeek || c.endWeek < currentWeek) return false;
-      const wt = c.weekType || "all";
-      if (wt === "odd" && currentWeek % 2 === 0) return false;
-      if (wt === "even" && currentWeek % 2 === 1) return false;
-      return true;
-    });
+    const dayCount = this.data.timetable && this.data.timetable.showWeekend === false ? 5 : 7;
+    const activeCourses = getActiveCourses(courses, currentWeek);
     const grid = [];
     for (let day = 0; day < dayCount; day++) {
       const slots = new Array(slotCount).fill(null);
@@ -200,6 +255,7 @@ Page({
   prevWeek() {
     if (this.data.currentWeek <= 1) return;
     this.setData({ currentWeek: this.data.currentWeek - 1 });
+    this.updateTodayStatus();
     this.updateDates();
     this.loadCourses();
   },
@@ -207,6 +263,15 @@ Page({
   nextWeek() {
     if (this.data.currentWeek >= (this.data.timetable.totalWeeks || 18)) return;
     this.setData({ currentWeek: this.data.currentWeek + 1 });
+    this.updateTodayStatus();
+    this.updateDates();
+    this.loadCourses();
+  },
+
+  // 回到真实教学周
+  backToRealWeek() {
+    this.setData({ currentWeek: this.data.realWeek });
+    this.updateTodayStatus();
     this.updateDates();
     this.loadCourses();
   },
@@ -222,6 +287,13 @@ Page({
   goSettings() {
     wx.navigateTo({
       url: "/pages/settings/index",
+    });
+  },
+
+  // 跳转空闲时段
+  goFreeTime() {
+    wx.navigateTo({
+      url: "/pages/free-time/index",
     });
   },
 

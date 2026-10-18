@@ -6,6 +6,7 @@
   <view class="page-head">
     <view class="head-title">{{timetableName || '空闲时段'}}</view>
     <view class="head-sub" wx:if="{{!error}}">第 {{week}} 周 · {{todayLabel}}</view>
+    <view class="head-note" wx:if="{{semesterNote}}">{{semesterNote}}</view>
     <view class="tabs">
       <view class="tab {{tab === 'today' ? 'on' : ''}}" data-tab="today" bindtap="switchTab">今天</view>
       <view class="tab {{tab === 'week' ? 'on' : ''}}" data-tab="week" bindtap="switchTab">本周</view>

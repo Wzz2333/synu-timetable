@@ -11,6 +11,8 @@ Page({
     tab: "today",
     timetableName: "",
     week: 1,
+    inSemester: true,
+    semesterNote: "",
     todayLabel: "",
     todayName: "",
     todayMonthDay: "",
@@ -102,6 +104,14 @@ Page({
     if (!timetable) return;
     const today = dateHelper.getToday();
     const week = dateHelper.getClampedWeek(timetable.startDate, timetable.totalWeeks);
+    const totalWeeks = parseInt(timetable.totalWeeks, 10) || 18;
+    const rawWeek = dateHelper.getRealWeek(timetable.startDate);
+    const inSemester = rawWeek >= 1 && rawWeek <= totalWeeks;
+    const semesterNote = inSemester
+      ? ""
+      : rawWeek < 1
+      ? "学期还没开始，先按第 1 周预览"
+      : "学期已结束，按第 " + totalWeeks + " 周预览";
     const dayCount = timetable.showWeekend === false ? 5 : 7;
 
     const todayResult = freeTime.analyzeToday(this.courses, week, today.weekdayIndex);
@@ -144,6 +154,8 @@ Page({
       error: "",
       timetableName: timetable.name || "我的课表",
       week,
+      inSemester,
+      semesterNote,
       todayLabel: today.label,
       todayName: today.name,
       todayMonthDay: today.monthDay,

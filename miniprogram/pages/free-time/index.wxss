@@ -42,6 +42,12 @@
   color: #888;
 }
 
+.head-note {
+  margin-top: 4rpx;
+  font-size: 20rpx;
+  color: #e6a23c;
+}
+
 .tabs {
   display: flex;
   margin-top: 16rpx;

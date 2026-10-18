@@ -397,3 +397,96 @@
   opacity: 0.8;
   line-height: 1;
 }
+
+/* ===== 今天指示 ===== */
+
+/* 本周徽标（只在浏览真实周次时出现） */
+.week-label .week-badge {
+  margin-left: 10rpx;
+  padding: 0 8rpx;
+  font-size: 18rpx;
+  font-weight: 400;
+  color: #1989fa;
+  border: 1rpx solid #1989fa;
+  border-radius: 8rpx;
+}
+
+/* 今天条 */
+.timetable-page .today-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8rpx;
+  padding: 4rpx 2rpx 0;
+  font-size: 22rpx;
+  color: #666;
+}
+
+.today-strip .today-info {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.today-strip .today-weekday {
+  color: #1989fa;
+  font-weight: 600;
+}
+
+.today-strip .today-date {
+  margin-left: 10rpx;
+  color: #666;
+}
+
+.today-strip .today-free {
+  margin-left: 10rpx;
+  color: #39b54a;
+}
+
+.today-strip .today-note {
+  margin-left: 10rpx;
+  color: #999;
+}
+
+.today-strip .today-jump {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.today-strip .today-back {
+  padding: 2rpx 14rpx;
+  font-size: 20rpx;
+  color: #1989fa;
+  border: 1rpx solid #1989fa;
+  border-radius: 20rpx;
+}
+
+.today-strip .today-arrow {
+  margin-left: 10rpx;
+  font-size: 26rpx;
+  color: #999;
+}
+
+/* 今天所在的列 */
+.day-header.today .day-name {
+  color: #1989fa;
+  font-weight: 600;
+}
+
+.day-header.today .day-date {
+  color: #1989fa;
+}
+
+.today-mark {
+  width: 32rpx;
+  height: 4rpx;
+  margin: 6rpx auto 0;
+  border-radius: 2rpx;
+  background: #1989fa;
+  opacity: 0;
+}
+
+.today-mark.on {
+  opacity: 1;
+}
