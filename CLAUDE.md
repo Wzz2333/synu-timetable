@@ -23,7 +23,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 │   ├── app.json                  # 页面注册、窗口配置
 │   ├── app.wxss                  # 全局样式 + 动态文字/边框颜色类
 │   ├── config/
-│   │   └── synu.js               # 沈师配置：作息表、教学楼、配色、学期计算
+│   │   ├── synu.js               # 沈师配置：作息表、教学楼、配色、学期计算
+│   │   └── subscribe.js          # 订阅消息：模板 ID、排期天数 / 条数上限
 │   ├── pages/
 │   │   ├── index/                # 主页：周视图课程表 (触摸滑动切周 + 今天指示)
 │   │   ├── free-time/            # 空闲时段：今天 / 本周 双视图 (纯前端计算)
@@ -58,6 +59,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `timetables` | `_openid, name, startDate, totalWeeks, showWeekend, createTime` | 课表，按 `_openid` 隔离 |
 | `courses` | `_openid, timetableId, name, teacher, room, slots[], startWeek, endWeek, weekType, weeks[], remark, createTime` | 课程，关联 `timetableId` |
 | `users` | `_openid, avatarUrl, nickName, createTime, updateTime` | 用户资料 |
+| `class_reminders` | `_openid, type, count, sendAt, courseName, timeText, status, ...` | 上课提醒：`type=quota` 存可发送次数，`type=task` 存排期任务，由云函数读写 |
 
 **课程核心字段说明**：
 - `slots[]`: 数组，每个元素 `{ day, startSlot, endSlot }`，支持一门课多个时间段
@@ -82,6 +84,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `deleteTimetable` | 删除课表及关联课程 | 先删课表，再删该课表下所有课程 |
 | `saveProfile` | 保存用户资料 | upsert 模式（有则更新，无则新建） |
 | `getProfile` | 获取用户资料 | 按 `_openid` 查询 |
+| `subscribeReminder` | 保存订阅授权 | 可发送次数 +1，按最新课表快照重建排期（`class_reminders` 的 task 记录） |
+| `getReminderStatus` | 查询订阅状态 | 剩余可发送次数 / 待发送条数 / 最近发送时间 |
+| `remindTick` | 发送到点提醒 | 定时触发器每分钟调用；也可手动触发调试 |
 
 > 注：`getOpenId`, `getMiniProgramCode`, `createCollection`, `selectRecord`, `updateRecord`, `insertRecord`, `deleteRecord` 为 QuickStart 模板遗留的演示接口，未被前端调用。
 
@@ -117,7 +122,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 2. `pages/import/preview/index` — 展示解析结果，可逐条编辑/删除
 3. 确认后调用 `addCourseBatch` 批量入库，完成后自动跳转管理页设置开学日期
 
-**测试**：`test-samples/` 下有 8 个 Node.js 脚本可独立运行（解析器 4 个 + 日期 1 个 + 空闲时段 1 个 + 时间冲突 1 个 + 上课提醒 1 个）。
+**测试**：`test-samples/` 下有 9 个 Node.js 脚本可独立运行（解析器 4 个 + 日期 1 个 + 空闲时段 1 个 + 时间冲突 1 个 + 上课提醒 1 个 + 订阅排期 1 个）。
 
 ### 4. 个性化外观 (settings)
 - 主题切换：浅色 (white.jpg) / 深色 (black.jpg)，存在 `wx.storage` 的 `theme` 键
@@ -162,8 +167,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 设置页「上课提醒」：一键「同步到手机日历」，用 `wx.addPhoneRepeatCalendar` 把本学期课程写进系统日历（`alarmOffset` 为提前秒数）
   - 连续周次（如 1-16 周）合并成一条「每周重复」事件
   - 不连续周次（如单周 1,3,5）拆成单次事件
-- 系统日历提醒不依赖网络、也不需要订阅消息模板；真正的微信服务通知（订阅消息）需要公众平台模板 ID，暂未接入
+- 系统日历提醒不依赖网络；微信服务通知（订阅消息）见第 10 节
 - 纯函数在 `utils/classReminder.js`：`getUpcomingClass` / `buildCalendarEvents`，可 Node 测试
+
+### 10. 微信服务通知（订阅消息）
+- 模板 ID 在 `config/subscribe.js`；云函数里的模板字段映射是 `cloudfunctions/quickstartFunctions/index.js` 顶部的 `SUBSCRIBE_FIELDS`（需与公众平台模板一致）
+- 设置页「微信服务通知」→「订阅一次提醒」：`wx.requestSubscribeMessage` 授权 → `buildSubscribeTasks` 生成未来 30 天每次课的排期 → 云函数 `subscribeReminder` 保存并把可发送次数 +1
+- 云函数 `config.json` 带 `subscribeMessage.send` 权限和每分钟执行的定时触发器；`remindTick` 查找到点任务 → 发消息 → 扣减次数，次数用完的任务标记 `no_quota`
+- 一次性订阅：一次授权只能发一条，想连续多条需多次点订阅；若模板是长期订阅，把 `SUBSCRIBE_LONG_TERM` 改成 `true`
+- 前置条件：云开发控制台创建 `class_reminders` 集合（权限「仅创建者可读写」），重新部署云函数；若定时器没生效，右键云函数 →「上传触发器」
 
 ## 关键架构约定
 
@@ -187,6 +199,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **运行空闲时段测试**: `node test-samples/test-free-time.js`
 - **运行时间冲突测试**: `node test-samples/test-course-conflict.js`
 - **运行上课提醒测试**: `node test-samples/test-class-reminder.js`
+- **运行订阅排期测试**: `node test-samples/test-reminder-tasks.js`
 
 ## 已完成的改造工作
 
@@ -203,6 +216,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - [x] 引入 git 版本控制（2026-10-18）
 - [x] 课程保存前时间冲突检测（2026-10-18）
 - [x] 上课提醒：首页提醒条 + 一键写入手机日历（2026-10-18）
+- [x] 微信服务通知（订阅消息 + 每分钟定时发送）（2026-10-18）
 
 ## 待清理的 QuickStart 遗留
 
