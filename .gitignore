@@ -1,0 +1,20 @@
+# --- 微信开发者工具 ---
+# 个人私有配置（编译选项、本地路径等），不同机器各不相同
+project.private.config.json
+
+# --- 依赖 ---
+node_modules/
+cloudfunctions/**/node_modules/
+
+# --- 系统 / 编辑器 ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log
+
+# --- DSH 本地缓存（不属于项目源码）---
+.dsh-project-memory/
+
+# --- 与本项目无关的比赛材料（含个人简历信息，如需版本化请删除本行）---
+介绍文档.docx

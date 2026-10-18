@@ -1,0 +1,271 @@
+/* pages/timetable/manage/index.wxss */
+
+.bg-layer {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.bg-image {
+  width: 100%;
+  height: 100%;
+}
+
+.manage-page {
+  padding: 30rpx;
+  min-height: 100vh;
+  background: transparent;
+  position: relative;
+  z-index: 1;
+}
+
+.page-title {
+  font-size: 40rpx;
+  font-weight: 600;
+  margin-bottom: 40rpx;
+  color: #333;
+}
+
+.timetable-list {
+  margin-bottom: 30rpx;
+}
+
+.timetable-item {
+  background: rgba(255,255,255,0.7);
+  border-radius: 12rpx;
+  padding: 28rpx 24rpx;
+  margin-bottom: 16rpx;
+  display: flex;
+  align-items: center;
+  border: 3rpx solid transparent;
+}
+
+.timetable-item.active {
+  border-color: #1989fa;
+}
+
+.timetable-info {
+  flex: 1;
+}
+
+.timetable-name {
+  font-size: 30rpx;
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 6rpx;
+}
+
+.timetable-meta {
+  font-size: 24rpx;
+  color: #999;
+}
+
+.timetable-check {
+  font-size: 22rpx;
+  color: #fff;
+  background: #1989fa;
+  padding: 6rpx 16rpx;
+  border-radius: 20rpx;
+}
+
+.timetable-select {
+  font-size: 22rpx;
+  color: #1989fa;
+  border: 2rpx solid #1989fa;
+  padding: 6rpx 16rpx;
+  border-radius: 20rpx;
+}
+
+.timetable-del {
+  font-size: 24rpx;
+  color: #e74c3c;
+  padding: 8rpx 12rpx;
+}
+
+.timetable-actions {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  flex-shrink: 0;
+}
+
+.empty-tip {
+  text-align: center;
+  padding: 120rpx 0;
+}
+
+.empty-text {
+  font-size: 28rpx;
+  color: #bbb;
+}
+
+.create-btn {
+  background: #1989fa;
+  color: #fff;
+  border-radius: 12rpx;
+  font-size: 32rpx;
+  font-weight: 500;
+  border: none;
+  width: 100%;
+}
+
+.import-btn {
+  background: rgba(255, 255, 255, 0.7);
+  color: #1989fa;
+  border: 2rpx solid #1989fa;
+  border-radius: 12rpx;
+  font-size: 30rpx;
+  font-weight: 500;
+  margin-top: 16rpx;
+  width: 100%;
+}
+
+.import-btn::after {
+  border: none;
+}
+
+/* 弹窗 */
+.modal-mask {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 100;
+}
+
+.modal-popup {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(255,255,255,0.95);
+  border-radius: 24rpx 24rpx 0 0;
+  z-index: 101;
+  padding: 40rpx;
+  max-height: 80vh;
+  overflow-y: auto;
+  transform: translateY(100%);
+  transition: transform 0.3s;
+}
+
+.modal-popup.show {
+  transform: translateY(0);
+}
+
+/* 导入完成后的提醒横幅 */
+.import-banner {
+  display: flex;
+  align-items: center;
+  background: #fff7e6;
+  border: 2rpx solid #e67e22;
+  border-radius: 12rpx;
+  padding: 18rpx 20rpx;
+  margin-bottom: 24rpx;
+  animation: bannerPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes bannerPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(230, 126, 34, 0.0); }
+  50%      { box-shadow: 0 0 0 10rpx rgba(230, 126, 34, 0.18); }
+}
+
+.import-banner-icon {
+  font-size: 36rpx;
+  margin-right: 14rpx;
+  line-height: 1;
+}
+
+.import-banner-text {
+  font-size: 26rpx;
+  color: #c25a0b;
+  font-weight: 500;
+  flex: 1;
+  line-height: 1.5;
+}
+
+/* 开学日期高亮（脉冲边框） */
+.form-group.highlight {
+  background: rgba(230, 126, 34, 0.06);
+  border-radius: 12rpx;
+  padding: 16rpx 20rpx;
+  margin-left: -20rpx;
+  margin-right: -20rpx;
+  animation: dateHighlight 1.4s ease-in-out infinite;
+}
+
+@keyframes dateHighlight {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(230, 126, 34, 0.0); }
+  50%      { box-shadow: 0 0 0 6rpx rgba(230, 126, 34, 0.25); }
+}
+
+.modal-title {
+  font-size: 34rpx;
+  font-weight: 600;
+  margin-bottom: 30rpx;
+}
+
+.form-group {
+  margin-bottom: 24rpx;
+}
+
+.form-label {
+  font-size: 26rpx;
+  color: #666;
+  margin-bottom: 10rpx;
+}
+
+.modal-input {
+  background: #f8f8f8;
+  border-radius: 12rpx;
+  padding: 20rpx 24rpx;
+  font-size: 28rpx;
+}
+
+.picker-val {
+  background: #f8f8f8;
+  border-radius: 12rpx;
+  padding: 20rpx 24rpx;
+  font-size: 28rpx;
+  color: #333;
+}
+
+.modal-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16rpx 0;
+  margin-bottom: 20rpx;
+}
+
+.switch-label {
+  font-size: 28rpx;
+  color: #333;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 20rpx;
+}
+
+.modal-btn {
+  flex: 1;
+  border-radius: 12rpx;
+  font-size: 30rpx;
+  padding: 20rpx 0;
+  text-align: center;
+  border: none;
+}
+
+.modal-btn.cancel {
+  background: #f5f5f5;
+  color: #666;
+}
+
+.modal-btn.confirm {
+  background: #1989fa;
+  color: #fff;
+}
+

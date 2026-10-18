@@ -1,0 +1,116 @@
+<!--pages/course/edit/index.wxml-->
+<view class="bg-layer" wx:if="{{bgImage}}">
+  <image class="bg-image" src="{{bgImage}}" mode="aspectFill" style="opacity: {{bgOpacity}};" />
+</view>
+<view class="edit-page">
+  <view class="form-title">{{isEdit ? '编辑课程' : '添加课程'}}</view>
+
+  <!-- 课程名 -->
+  <view class="form-group">
+    <view class="form-label">课程名称 <text class="required">*</text></view>
+    <input class="form-input" value="{{form.name}}" data-field="name" bindinput="onInput" placeholder="如：高等数学" />
+  </view>
+
+  <!-- 教师 -->
+  <view class="form-group">
+    <view class="form-label">教师</view>
+    <input class="form-input" value="{{form.teacher}}" data-field="teacher" bindinput="onInput" placeholder="如：张老师" />
+  </view>
+
+  <!-- 教室 -->
+  <view class="form-group">
+    <view class="form-label">教室</view>
+    <input class="form-input" value="{{form.room}}" data-field="room" bindinput="onInput" placeholder="如：博文楼202" />
+  </view>
+
+  <!-- 上课时间段（可多个） -->
+  <view class="form-group">
+    <view class="form-label">上课时间</view>
+    <view class="slot-item" wx:for="{{form.slots}}" wx:key="index">
+      <view class="slot-header">
+        <text class="slot-title">时间段 {{index + 1}}</text>
+        <view class="slot-remove" wx:if="{{form.slots.length > 1}}" data-index="{{index}}" bindtap="removeSlot">删除</view>
+      </view>
+      <view class="form-row">
+        <view class="form-third">
+          <view class="mini-label">星期</view>
+          <picker mode="selector" range="{{dayOptions}}" value="{{item.day - 1}}" data-index="{{index}}" data-field="day" bindchange="onSlotFieldChange">
+            <view class="picker-val">{{dayOptions[item.day - 1]}}</view>
+          </picker>
+        </view>
+        <view class="form-third">
+          <view class="mini-label">起始节</view>
+          <picker mode="selector" range="{{slotOptions}}" value="{{item.startSlot - 1}}" data-index="{{index}}" data-field="startSlot" bindchange="onSlotFieldChange">
+            <view class="picker-val">{{slotOptions[item.startSlot - 1]}}</view>
+          </picker>
+        </view>
+        <view class="form-third">
+          <view class="mini-label">结束节</view>
+          <picker mode="selector" range="{{slotOptions}}" value="{{item.endSlot - 1}}" data-index="{{index}}" data-field="endSlot" bindchange="onSlotFieldChange">
+            <view class="picker-val">{{slotOptions[item.endSlot - 1]}}</view>
+          </picker>
+        </view>
+      </view>
+    </view>
+    <view class="add-slot-btn" bindtap="addSlot">+ 添加时间段</view>
+  </view>
+
+  <!-- 周次 -->
+  <view class="form-group">
+    <view class="form-label">教学周次 · 已选{{form.weeks.length}}周</view>
+    <view class="form-row">
+      <view class="form-half">
+        <view class="mini-label">起始周</view>
+        <input class="picker-val week-input" type="number" value="{{form.startWeek}}" bindinput="onStartWeekInput" bindblur="onStartWeekBlur" />
+      </view>
+      <view class="form-half">
+        <view class="mini-label">结束周</view>
+        <input class="picker-val week-input" type="number" value="{{form.endWeek}}" bindinput="onEndWeekInput" bindblur="onEndWeekBlur" />
+      </view>
+    </view>
+
+    <view class="form-row" style="margin-top: 12rpx;">
+      <view class="form-half">
+        <view class="mini-label">单双周</view>
+        <picker mode="selector" range="{{weekTypeOptions}}" value="{{weekTypeIndex}}" bindchange="onWeekTypeChange">
+          <view class="picker-val">{{weekTypeOptions[weekTypeIndex]}}</view>
+        </picker>
+      </view>
+      <view class="form-half" style="display:flex;align-items:flex-end;">
+        <view class="detail-btn" bindtap="showWeekModal">详细设置 ▾</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 备注 -->
+  <view class="form-group">
+    <view class="form-label">备注</view>
+    <input class="form-input" value="{{form.remark}}" data-field="remark" bindinput="onInput" placeholder="如：带教材、实验课" />
+  </view>
+
+  <button class="submit-btn" bindtap="doSubmit">{{isEdit ? '保存修改' : '添加课程'}}</button>
+
+  <!-- 周次详细设置弹窗 -->
+  <view class="modal-mask" wx:if="{{showWeekModal}}" bindtap="hideWeekModal"></view>
+  <view class="modal-popup {{showWeekModal ? 'show' : ''}}">
+    <view class="modal-title">选择上课周次</view>
+    <view class="week-presets">
+      <view class="preset-btn" bindtap="modalPreset" data-type="all">全部</view>
+      <view class="preset-btn" bindtap="modalPreset" data-type="odd">单周</view>
+      <view class="preset-btn" bindtap="modalPreset" data-type="even">双周</view>
+      <view class="preset-btn" bindtap="modalPreset" data-type="none">清除</view>
+    </view>
+    <view class="week-chips">
+      <view
+        wx:for="{{displayWeeks}}"
+        wx:key="value"
+        class="week-chip {{item.selected ? 'on' : ''}}"
+        data-week="{{item.value}}"
+        bindtap="toggleModalWeek"
+      >{{item.label}}</view>
+    </view>
+    <view class="modal-actions">
+      <view class="modal-btn" bindtap="hideWeekModal">完成</view>
+    </view>
+  </view>
+</view>

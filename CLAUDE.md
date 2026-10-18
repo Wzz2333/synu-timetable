@@ -1,0 +1,171 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## 项目概述
+
+沈阳师范大学特供版课程表小程序，基于微信云开发 (WeChat Cloud Base)。面向沈师学子，提供课程表管理、教务系统课表导入、个性化外观等完整功能。
+
+## 技术栈与工具链
+
+- **开发工具**: 微信开发者工具 (WeChat DevTools)
+- **小程序框架**: 原生微信小程序 (WeChat Mini Program native framework)
+- **后端**: 微信云开发 — 云函数 (Cloud Functions) + 云数据库 (Cloud Database) + 云存储 (Cloud Storage)
+- **基础库版本**: 2.20.1+
+- **AppID**: `wx340bfe178cb2ba4d`
+- **云开发环境**: `cloud1-d6gz4okgv3c630e15` (在 `miniprogram/app.js` 中配置)
+
+## 目录结构
+
+```
+├── miniprogram/                  # 小程序前端代码
+│   ├── app.js                    # 入口文件, 云开发初始化 + resolveBackground()
+│   ├── app.json                  # 页面注册、窗口配置
+│   ├── app.wxss                  # 全局样式 + 动态文字/边框颜色类
+│   ├── config/
+│   │   └── synu.js               # 沈师配置：作息表、教学楼、配色、学期计算
+│   ├── pages/
+│   │   ├── index/                # 主页：周视图课程表 (触摸滑动切周)
+│   │   ├── course/edit/          # 课程新增/编辑 (多时段 + 自定义周次)
+│   │   ├── timetable/manage/     # 课表管理 (新建/选择/编辑/删除)
+│   │   ├── import/               # 导入步骤1：粘贴教务系统文本 + 选择目标课表
+│   │   │   └── preview/          # 导入步骤2：预览解析结果 + 逐条编辑 + 批量入库
+│   │   ├── settings/             # 设置：主题/自定义背景/文字边框配色
+│   │   └── profile/              # 微信头像昵称登录
+│   ├── components/
+│   │   ├── background/           # 背景图层组件
+│   │   └── cloudTipModal/        # 云开发提示组件
+│   └── utils/
+│       ├── parseScheduleText.js  # 教务系统文本解析器 (406行，核心模块)
+│       └── weekHelper.js         # 周次工具：buildWeeks / detectWeekType
+├── cloudfunctions/
+│   └── quickstartFunctions/      # 入口云函数 (按 event.type 路由分发)
+├── test-samples/                 # 解析器回归测试 (Node.js 直接运行)
+├── samples/                      # 教务系统文本样本
+└── project.config.json           # 微信开发者工具项目配置
+```
+
+## 云数据库数据模型
+
+| 集合名 | 字段 | 说明 |
+|--------|------|------|
+| `timetables` | `_openid, name, startDate, totalWeeks, showWeekend, createTime` | 课表，按 `_openid` 隔离 |
+| `courses` | `_openid, timetableId, name, teacher, room, slots[], startWeek, endWeek, weekType, weeks[], remark, createTime` | 课程，关联 `timetableId` |
+| `users` | `_openid, avatarUrl, nickName, createTime, updateTime` | 用户资料 |
+
+**课程核心字段说明**：
+- `slots[]`: 数组，每个元素 `{ day, startSlot, endSlot }`，支持一门课多个时间段
+- `weekType`: `"all"` / `"odd"` / `"even"` / `"custom"`
+- `weeks[]`: 字符串数组，如 `["1","3","5","7","9","11","13","15","17"]`
+- 数据按 `_openid` 隔离，云函数通过 `cloud.getWXContext().OPENID` 自动注入
+
+## 云函数路由 (quickstartFunctions/index.js)
+
+通过 `wx.cloud.callFunction({ name: 'quickstartFunctions', data: { type: 'xxx', data: {...} } })` 调用。`switch (event.type)` 分发到以下业务接口：
+
+| type | 功能 | 说明 |
+|------|------|------|
+| `addCourse` | 新增课程 | 单个课程写入，自动注入 `_openid` |
+| `updateCourse` | 更新课程 | 按 `_id` 更新 |
+| `deleteCourse` | 删除课程 | 按 `_id` 删除 |
+| `getCourses` | 查询课程 | 按 `timetableId` + `_openid` 过滤 |
+| `addCourseBatch` | 批量导入课程 | 校验课表归属 → 数据清洗 → 20条/批并发写入 |
+| `addTimetable` | 新建课表 | 自动注入 `_openid` |
+| `getTimetables` | 查询课表列表 | 按 `_openid` 过滤，按 `createTime` 降序 |
+| `updateTimetable` | 更新课表 | 按 `_id` 更新 |
+| `deleteTimetable` | 删除课表及关联课程 | 先删课表，再删该课表下所有课程 |
+| `saveProfile` | 保存用户资料 | upsert 模式（有则更新，无则新建） |
+| `getProfile` | 获取用户资料 | 按 `_openid` 查询 |
+
+> 注：`getOpenId`, `getMiniProgramCode`, `createCollection`, `selectRecord`, `updateRecord`, `insertRecord`, `deleteRecord` 为 QuickStart 模板遗留的演示接口，未被前端调用。
+
+## 核心功能详解
+
+### 1. 多课表管理 (timetable/manage + app.globalData)
+- 用户可创建多张课表（如"大二上学期"、"大二下学期"）
+- 当前活跃课表通过 `app.globalData.activeTimetableId` 维护
+- 首页 (`pages/index`) 自动加载活跃课表，无课表时显示新建提示
+- 删除课表时自动级联删除该课表下所有课程
+- 导入完成后自动打开课表编辑弹窗，提醒设置开学日期
+
+### 2. 课程编辑 (course/edit)
+- 支持多时段配置 (`slots[]` 数组)，可动态增减时间段
+- 周次支持四种模式：全部周 / 单周 / 双周 / 自定义（弹窗勾选）
+- 通过 `weekHelper.buildWeeks()` / `detectWeekType()` 实现周次 ←→ 类型的双向转换
+- 编辑页通过 URL query string 传递所有字段（含 `encodeURIComponent(JSON.stringify())` 的数组）
+- 教学楼选项来自 `synu.js` 的 `BUILDINGS` 配置
+
+### 3. 教务系统文本导入 (import → preview + parseScheduleText.js)
+这是项目最复杂的模块，实现从沈阳师范大学教务系统（jwxt.synu.edu.cn）"个人课表查询"页面 Ctrl+A Ctrl+C 的纯文本中自动提取课程。
+
+**解析流程 (parseScheduleText.js, 406行)**：
+- **强力归一化**：处理 BOM / 零宽字符 / 全角破折号 / Unicode 换行符 / 不间断空格等真机复制带来的特殊字符
+- **状态机行解析**：逐行识别 "星期一/周二" → "3-4节" → "△课程名 周数:..." 的层级结构，兼容新旧两种教务系统格式
+- **两遍合并 (mergeCourses)**：
+  - Pass 1：同名同师 + slot 重叠（传递性）→ 合并为一门课
+  - Pass 2：同名不同师 + slot 重叠 → 调课合并，remark 写入 "X周Y代课"
+- **数据清洗**：`addCourseBatch` 云函数对 `slots`/`weeks` 做二次校验，20 条/批并发写入
+
+**导入流程**：
+1. `pages/import/index` — 粘贴文本 + 选择目标课表（也可内联新建课表）
+2. `pages/import/preview/index` — 展示解析结果，可逐条编辑/删除
+3. 确认后调用 `addCourseBatch` 批量入库，完成后自动跳转管理页设置开学日期
+
+**测试**：`test-samples/` 下有 4 个 Node.js 脚本可独立运行验证解析器。
+
+### 4. 个性化外观 (settings)
+- 主题切换：浅色 (white.jpg) / 深色 (black.jpg)，存在 `wx.storage` 的 `theme` 键
+- 自定义背景：选择图片 → 上传云存储 → 存 `fileID` 到 `bgImage`
+- 背景不透明度：滑块控制 (0~1)，存 `bgOpacity`
+- 文字/边框配色：预设色板，通过 `.fc-xxx` / `.bc-xxx` 动态 class 生效
+- `app.resolveBackground()` 统一解析背景配置，所有页面在 `onShow` 中调用 `loadBg()`
+
+### 5. 沈师特色配置 (config/synu.js)
+- 10 节作息：`08:20-19:10`，含 12:00-13:15 午休、17:30-18:25 晚饭
+- 9 栋教学楼：博文楼、汇文楼、弘文楼、国际楼、综合楼、美术楼、音乐楼、体育楼、实验楼
+- 12 色课程卡片配色方案
+- 学期预设：`getCurrentSemester()` 根据月份（2-7月→春季 / 8-1月→秋季）自动推荐开学日期
+- 教学周计算：`getCurrentWeek()` 从开学周一开始算当前周
+
+### 6. 用户登录 (profile)
+- 通过微信原生 `<button open-type="chooseAvatar">` 获取头像
+- 通过 `<input type="nickname">` 获取昵称
+- 头像上传云存储 → 资料存入 `users` 集合（upsert 模式）
+- 登录态本地缓存到 `wx.storage.profile`
+
+## 关键架构约定
+
+- **页面路由**: 在 `app.json` → `pages` 中注册，框架自动按路径映射。新增页面需同时在这里注册。
+- **云函数调用**: 统一通过 `wx.cloud.callFunction({ name: 'quickstartFunctions', data: { type: 'xxx', data: {...} } })` 路由。
+- **跨页传参**: 复杂对象（如 `slots[]`, `weeks[]`）通过 URL query string 传递，使用 `encodeURIComponent(JSON.stringify())`。
+- **全局状态**: `app.globalData.activeTimetableId` 维护当前课表，`app.resolveBackground()` 统一解析背景。
+- **样式单位**: 使用 `rpx` (responsive pixel)，750rpx = 屏幕宽度。
+- **本地存储键**: `hasLaunched`, `bgImage`, `bgOpacity`, `theme`, `fontColor`, `borderColor`, `profile`
+
+## 开发命令
+
+本项目无 CLI 构建工具，所有操作在微信开发者工具中完成：
+
+- **预览/调试**: 微信开发者工具 → 点击「编译」或 `Ctrl+B`
+- **上传云函数**: 在 `cloudfunctions/quickstartFunctions` 目录右键 → 「上传并部署-云端安装依赖」
+- **真机预览**: 微信开发者工具 → 点击「预览」生成二维码
+- **上传代码**: 微信开发者工具 → 点击「上传」
+- **运行解析器测试**: `node test-samples/test-real-raw.js`
+
+## 已完成的改造工作
+
+- [x] 将 QuickStart 模板改造为课程表应用，替换全部页面
+- [x] 实现云数据库三张核心表 (timetables / courses / users)
+- [x] 实现云函数 10 个业务接口
+- [x] 实现教务系统文本解析器 + 批量导入流程
+- [x] 实现多课表管理 + 课程 CRUD
+- [x] 实现个性化设置（主题/背景/配色）
+- [x] 实现微信头像昵称登录
+- [x] 删除首次启动登录引导弹窗（2026-06-08）
+
+## 待清理的 QuickStart 遗留
+
+- [ ] 云函数中 6 个演示接口 (`getOpenId`, `getMiniProgramCode`, `createCollection`, `selectRecord`, `updateRecord`, `insertRecord`, `deleteRecord`)
+- [ ] `miniprogram/envList.js` (空模块)
+- [ ] `project.config.json` 中 `condition.miniprogram.list` 的 `databaseGuide` 引用
+- [ ] 项目名 `quickstart-wx-cloud` → 可改为 `synu-timetable`

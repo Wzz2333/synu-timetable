@@ -1,0 +1,72 @@
+<!--pages/settings/index.wxml-->
+<view class="settings-page">
+  <view class="section">
+    <view class="section-title">主题</view>
+    <view class="theme-row">
+      <view
+        wx:for="{{themeOptions}}"
+        wx:key="value"
+        class="theme-card {{theme === item.value ? 'selected' : ''}}"
+        data-value="{{item.value}}"
+        bindtap="selectTheme"
+      >
+        <view class="theme-card-name">{{item.name}}</view>
+        <view class="theme-card-desc">{{item.desc}}</view>
+        <view class="theme-card-check" wx:if="{{theme === item.value}}">✓</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="section">
+    <view class="section-title">自定义背景</view>
+    <view class="theme-hint" wx:if="{{!hasCustomBg}}">
+      当前使用主题默认背景，上传图片后将覆盖
+    </view>
+    <view class="preview-box" wx:if="{{bgImage}}">
+      <image class="preview-img" src="{{bgImage}}" mode="aspectFill" style="opacity: {{bgOpacity}};" />
+      <view class="preview-label">{{hasCustomBg ? '自定义背景' : '主题默认背景'}}</view>
+    </view>
+    <button class="setting-btn" bindtap="chooseImage">{{bgImage && hasCustomBg ? '更换背景图片' : '选择背景图片'}}</button>
+    <view class="slider-group" wx:if="{{bgImage && hasCustomBg}}">
+      <view class="slider-label">背景透明度: {{sliderValue}}%</view>
+      <slider min="5" max="100" value="{{sliderValue}}" bindchange="onOpacityChange" activeColor="#1989fa" block-size="20" />
+    </view>
+    <button class="setting-btn clear-btn" wx:if="{{hasCustomBg}}" bindtap="clearBackground">清除自定义背景</button>
+  </view>
+
+  <view class="section">
+    <view class="section-title">字体颜色</view>
+    <view class="color-row">
+      <view
+        wx:for="{{fontPresets}}"
+        wx:key="index"
+        wx:for-item="item"
+        class="color-swatch {{fontColor === item[0] ? 'selected' : ''}}"
+        style="background-color: {{item[0]}};"
+        data-color="{{item[0]}}"
+        bindtap="selectFontColor"
+      ></view>
+    </view>
+    <view class="color-name">{{fontPresets[0] ? '' : ''}}</view>
+  </view>
+
+  <view class="section">
+    <view class="section-title">框线颜色</view>
+    <view class="color-row">
+      <view
+        wx:for="{{borderPresets}}"
+        wx:key="index"
+        wx:for-item="item"
+        class="color-swatch {{borderColor === item[0] ? 'selected' : ''}}"
+        style="background-color: {{item[0]}}; border: 2rpx solid #ddd;"
+        data-color="{{item[0]}}"
+        bindtap="selectBorderColor"
+      ></view>
+    </view>
+  </view>
+
+  <view class="section">
+    <view class="section-title">账户</view>
+    <button class="setting-btn" bindtap="goProfile">我的</button>
+  </view>
+</view>

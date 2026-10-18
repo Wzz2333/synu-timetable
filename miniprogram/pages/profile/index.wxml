@@ -1,0 +1,36 @@
+<!--pages/profile/index.wxml-->
+<view class="profile-page">
+  <view class="profile-card">
+    <!-- 未登录 -->
+    <block wx:if="{{!isLogin}}">
+      <view class="login-tip">点击设置头像和昵称</view>
+      <button class="avatar-btn" open-type="chooseAvatar" bindchooseavatar="onChooseAvatar">
+        <image wx:if="{{tempAvatar}}" class="avatar-img" src="{{tempAvatar}}" mode="aspectFill" />
+        <view wx:else class="avatar-placeholder">点击选头像</view>
+      </button>
+      <view class="nickname-row">
+        <input
+          class="nickname-input"
+          type="nickname"
+          value="{{tempNickName}}"
+          placeholder="点击输入昵称"
+          bindinput="onNickInput"
+          bindblur="onNickBlur"
+        />
+      </view>
+      <button class="login-btn" bindtap="doLogin" disabled="{{!tempAvatar || !tempNickName}}">保存并登录</button>
+    </block>
+
+    <!-- 已登录 -->
+    <block wx:else>
+      <view class="avatar-wrap">
+        <image class="avatar-img" src="{{avatarUrl}}" mode="aspectFill" />
+      </view>
+      <view class="nickname-display">{{nickName}}</view>
+      <view class="action-row">
+        <button class="action-btn" bindtap="reLogin">重新设置</button>
+        <button class="action-btn logout" bindtap="logout">退出登录</button>
+      </view>
+    </block>
+  </view>
+</view>

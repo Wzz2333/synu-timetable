@@ -1,0 +1,120 @@
+/* pages/profile/index.wxss */
+
+.profile-page {
+  padding: 30rpx;
+  min-height: 100vh;
+}
+
+.profile-card {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 80rpx 40rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.login-tip {
+  font-size: 26rpx;
+  color: #999;
+  margin-bottom: 40rpx;
+}
+
+.avatar-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-bottom: 40rpx;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.avatar-btn::after {
+  border: none;
+}
+
+.avatar-img {
+  width: 160rpx;
+  height: 160rpx;
+  border-radius: 50%;
+  background: #f0f0f0;
+}
+
+.avatar-placeholder {
+  width: 160rpx;
+  height: 160rpx;
+  border-radius: 50%;
+  background: #f0f0f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28rpx;
+  color: #999;
+  border: 4rpx dashed #ddd;
+}
+
+.nickname-row {
+  width: 100%;
+  margin-bottom: 50rpx;
+}
+
+.nickname-input {
+  text-align: center;
+  font-size: 32rpx;
+  padding: 20rpx;
+  border-bottom: 2rpx solid #eee;
+}
+
+.login-btn {
+  background: #07c160;
+  color: #fff;
+  border-radius: 12rpx;
+  font-size: 32rpx;
+  font-weight: 500;
+  border: none;
+  padding: 24rpx 0;
+  width: 100%;
+}
+
+.login-btn[disabled] {
+  background: #ccc;
+}
+
+.login-btn::after {
+  border: none;
+}
+
+.avatar-wrap {
+  margin-bottom: 30rpx;
+}
+
+.nickname-display {
+  font-size: 36rpx;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 40rpx;
+}
+
+.action-row {
+  display: flex;
+  gap: 20rpx;
+}
+
+.action-btn {
+  font-size: 26rpx;
+  color: #1989fa;
+  background: #f0f7ff;
+  border-radius: 10rpx;
+  border: none;
+  padding: 16rpx 40rpx;
+}
+
+.action-btn::after {
+  border: none;
+}
+
+.action-btn.logout {
+  color: #e74c3c;
+  background: #fef0f0;
+}

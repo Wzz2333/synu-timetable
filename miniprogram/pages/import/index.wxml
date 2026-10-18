@@ -1,0 +1,100 @@
+<!--pages/import/index.wxml-->
+<view class="bg-layer" wx:if="{{bgImage}}">
+  <image class="bg-image" src="{{bgImage}}" mode="aspectFill" style="opacity: {{bgOpacity}};" />
+</view>
+<view class="import-page">
+  <view class="page-title">从教务系统导入</view>
+
+  <!-- 操作说明 -->
+  <view class="tip-card">
+    <view class="tip-title">导入说明</view>
+    <view class="tip-step">1. 打开教务系统的个人课表查询</view>
+    <view class="tip-step">2. 选择想设置的学年和学期</view>
+    <view class="tip-step">3. 选择<text class="highlight">列表视图</text></view>
+    <view class="tip-step">4. 全选整个页面的文字并复制</view>
+    <view class="tip-step">5. 粘贴到下方文本框，点击解析并预览</view>
+    <view class="tip-warn">仅支持文本型教务系统页面，不含图片/扫描件</view>
+  </view>
+
+  <!-- 目标课表选择 -->
+  <view class="form-card">
+    <view class="form-label">
+      <text>目标课表</text>
+      <text class="link-btn" bindtap="openCreateModal">+ 新建课表</text>
+    </view>
+    <picker mode="selector" range="{{timetableNames}}" value="{{timetableIndex}}" bindchange="onTimetableChange">
+      <view class="picker-val">
+        <text wx:if="{{timetableNames.length > 0}}">{{timetableNames[timetableIndex] || '请选择'}}</text>
+        <text wx:else class="picker-empty">暂无课表，可点击右上角新建</text>
+      </view>
+    </picker>
+  </view>
+
+  <!-- 粘贴区 -->
+  <view class="form-card">
+    <view class="form-label">
+      <text>教务系统纯文本</text>
+      <text class="clear-btn" wx:if="{{rawText}}" bindtap="clearText">清空</text>
+    </view>
+    <textarea
+      class="paste-area"
+      value="{{rawText}}"
+      bindinput="onTextInput"
+      placeholder="在此粘贴从教务系统复制的课表内容..."
+      maxlength="-1"
+      auto-height
+    ></textarea>
+    <view class="text-counter">{{rawText.length}} 字</view>
+  </view>
+
+  <!-- 解析预览摘要（解析后显示） -->
+  <view class="result-card" wx:if="{{parsedStats.total > 0 || hasParsed}}">
+    <view class="result-row">
+      <text class="result-label">识别课程</text>
+      <text class="result-value">{{parsedStats.total}} 门</text>
+    </view>
+    <view class="result-row" wx:if="{{parsedStats.merged > 0}}">
+      <text class="result-label">合并调整</text>
+      <text class="result-value">{{parsedStats.merged}} 条</text>
+    </view>
+    <view class="result-row" wx:if="{{parsedStats.dropped > 0}}">
+      <text class="result-label">其它课程</text>
+      <text class="result-value">{{parsedStats.dropped}} 段已忽略</text>
+    </view>
+    <view class="warnings" wx:if="{{warnings.length > 0}}">
+      <view class="warning-title">提示</view>
+      <view class="warning-item" wx:for="{{warnings}}" wx:key="*this">{{item}}</view>
+    </view>
+  </view>
+
+  <button class="action-btn primary" bindtap="goPreview" disabled="{{!canPreview}}">
+    解析并预览
+  </button>
+  <view class="action-tip" wx:if="{{!canPreview}}">
+    请先粘贴文本并选择目标课表
+  </view>
+</view>
+
+<!-- 新建课表 弹窗 -->
+<view class="modal-mask" wx:if="{{showCreateModal}}" bindtap="closeCreateModal"></view>
+<view class="modal-popup {{showCreateModal ? 'show' : ''}}">
+  <view class="modal-title">新建课表</view>
+  <view class="modal-hint">先建好课表，导入的课程会自动写入这张课表</view>
+
+  <view class="form-group">
+    <view class="form-label">名称</view>
+    <input class="modal-input" value="{{createForm.name}}" data-field="name" bindinput="onCreateInput" placeholder="如：大二上学期" />
+  </view>
+
+  <view class="form-group">
+    <view class="form-label">开学日期</view>
+    <picker mode="date" value="{{createForm.startDate}}" bindchange="onCreateDateChange">
+      <view class="picker-val">{{createForm.startDate || '请选择'}}</view>
+    </picker>
+  </view>
+
+  <view class="modal-actions">
+    <button class="modal-btn cancel" bindtap="closeCreateModal">取消</button>
+    <button class="modal-btn confirm" bindtap="doCreateTimetable" disabled="{{creating}}">创建并选中</button>
+  </view>
+</view>

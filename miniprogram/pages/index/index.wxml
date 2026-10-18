@@ -1,0 +1,126 @@
+<!--pages/index/index.wxml-->
+<view class="bg-layer" wx:if="{{bgImage}}">
+  <image class="bg-image" src="{{bgImage}}" mode="aspectFill" style="opacity: {{bgOpacity}};" />
+</view>
+<view class="timetable-page {{fontClass}} {{borderClass}}" bindtouchstart="onTouchStart" bindtouchend="onTouchEnd">
+  <view class="header">
+    <view class="header-top">
+      <view class="timetable-title" bindtap="goManage">
+        <text>{{timetable.name}}</text>
+        <text class="title-arrow">▾</text>
+      </view>
+      <view class="settings-btn" bindtap="goSettings">设置</view>
+    </view>
+    <view class="week-switcher">
+      <view class="week-arrow {{currentWeek <= 1 ? 'disabled' : ''}}" bindtap="prevWeek">◀</view>
+      <view class="week-label">第 {{currentWeek}} 周</view>
+      <view class="week-arrow {{currentWeek >= timetable.totalWeeks ? 'disabled' : ''}}" bindtap="nextWeek">▶</view>
+    </view>
+  </view>
+
+  <view class="table-container">
+    <view class="table-header">
+      <view class="time-header">节次</view>
+      <view class="day-header" wx:for="{{displayDayNames}}" wx:key="di" wx:for-item="name" wx:for-index="di">
+        <view class="day-name">{{name}}</view>
+        <view class="day-date" wx:if="{{dates[di]}}">{{dates[di]}}</view>
+      </view>
+    </view>
+
+    <scroll-view class="table-body" scroll-y="true" enhanced show-scrollbar="{{false}}">
+      <view class="table-row" wx:for="{{slotCount}}" wx:key="si" wx:for-index="si">
+        <view class="time-cell">
+          <text class="slot-num">{{si + 1}}</text>
+          <text class="slot-time">{{SLOT_TIMES[si][0]}}</text>
+          <text class="slot-time">{{SLOT_TIMES[si][1]}}</text>
+        </view>
+        <view
+          class="day-cell"
+          wx:for="{{weekCourses}}"
+          wx:key="di"
+          wx:for-item="col"
+          wx:for-index="di"
+        >
+          <view
+            wx:if="{{col[si] && col[si] !== 'continue'}}"
+            class="course-card"
+            style="height: {{col[si].span * 100}}rpx; background-color: {{col[si].color || COURSE_COLORS[col[si].colorIndex]}};"
+            data-course="{{col[si]}}"
+            bindtap="onCourseTap"
+          >
+            <view class="course-name">{{col[si].name}}</view>
+            <view class="course-info">{{col[si].teacher}}</view>
+            <view class="course-info">{{col[si].room}}</view>
+          </view>
+          <view
+            wx:if="{{!col[si]}}"
+            class="empty-slot"
+            data-day="{{di + 1}}"
+            data-slot="{{si}}"
+            bindtap="onSlotTap"
+          >
+            <text class="empty-plus">+</text>
+          </view>
+        </view>
+      </view>
+    </scroll-view>
+  </view>
+
+  <view class="detail-mask" wx:if="{{showDetail}}" bindtap="closeDetail"></view>
+  <view class="detail-popup {{showDetail ? 'show' : ''}}">
+    <view class="detail-header">
+      <view class="detail-color" style="background-color: {{detailCourse.color || COURSE_COLORS[detailCourse.colorIndex]}};"></view>
+      <view class="detail-name">{{detailCourse.name}}</view>
+    </view>
+    <view class="detail-info">
+      <view class="detail-row">
+        <text class="detail-label">教师</text>
+        <text>{{detailCourse.teacher || '未填写'}}</text>
+      </view>
+      <view class="detail-row">
+        <text class="detail-label">教室</text>
+        <text>{{detailCourse.room || '未填写'}}</text>
+      </view>
+      <view class="detail-row">
+        <text class="detail-label">时间</text>
+        <view class="detail-slots">
+          <block wx:if="{{detailCourse.slots && detailCourse.slots.length > 0}}">
+            <view wx:for="{{detailCourse.slots}}" wx:key="index" wx:for-item="s" class="detail-slot-line">
+              周{{weekdayNames[s.day - 1]}} 第{{s.startSlot}}-{{s.endSlot}}节
+            </view>
+          </block>
+          <view wx:else class="detail-slot-line">
+            周{{weekdayNames[detailCourse.day - 1]}} 第{{detailCourse.startSlot}}-{{detailCourse.endSlot}}节
+          </view>
+        </view>
+      </view>
+      <view class="detail-row">
+        <text class="detail-label">周次</text>
+        <text>第{{detailCourse.startWeek}}-{{detailCourse.endWeek}}周 {{detailCourse.weekType === 'odd' ? '(单周)' : detailCourse.weekType === 'even' ? '(双周)' : ''}}</text>
+      </view>
+      <view class="detail-row" wx:if="{{detailCourse.remark}}">
+        <text class="detail-label">备注</text>
+        <text>{{detailCourse.remark}}</text>
+      </view>
+    </view>
+    <view class="detail-actions">
+      <button class="btn-edit" bindtap="editCourse">编辑</button>
+      <button class="btn-delete" bindtap="deleteCourse">删除</button>
+    </view>
+    <view class="detail-close" bindtap="closeDetail">关闭</view>
+  </view>
+
+  <view class="fab" bindtap="onFabTap">
+    <text class="fab-icon">+</text>
+  </view>
+
+  <!-- 新建课表提示横幅 -->
+  <view class="create-tip" wx:if="{{showCreateTip}}" bindtap="goCreateTimetable">
+    <text class="create-tip-icon">📅</text>
+    <view class="create-tip-text">
+      <view class="create-tip-title">还没有课表</view>
+      <view class="create-tip-desc">点击新建你的第一张课表</view>
+    </view>
+    <view class="create-tip-arrow">›</view>
+  </view>
+</view>

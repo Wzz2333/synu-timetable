@@ -1,0 +1,73 @@
+<!--pages/timetable/manage/index.wxml-->
+<view class="bg-layer" wx:if="{{bgImage}}">
+  <image class="bg-image" src="{{bgImage}}" mode="aspectFill" style="opacity: {{bgOpacity}};" />
+</view>
+<view class="manage-page">
+  <view class="page-title">我的课表</view>
+
+  <view class="timetable-list" wx:if="{{timetables.length > 0}}">
+    <view
+      class="timetable-item {{item._id === activeId ? 'active' : ''}}"
+      wx:for="{{timetables}}"
+      wx:key="_id"
+    >
+      <view class="timetable-info" data-id="{{item._id}}" bindtap="openModal">
+        <view class="timetable-name">{{item.name}}</view>
+        <view class="timetable-meta">{{item.totalWeeks}}周 · {{item.startDate}}起{{item.showWeekend === false ? ' · 仅工作日' : ''}}</view>
+      </view>
+      <view class="timetable-actions">
+        <view class="timetable-check" wx:if="{{item._id === activeId}}">当前</view>
+        <view class="timetable-select" wx:else data-id="{{item._id}}" bindtap="selectTimetable">选择</view>
+        <view class="timetable-del" data-id="{{item._id}}" data-name="{{item.name}}" bindtap="deleteTimetable">删除</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="empty-tip" wx:else>
+    <view class="empty-text">暂无课表，点击下方按钮创建</view>
+  </view>
+
+  <button class="create-btn" bindtap="openModal">+ 新建课表</button>
+  <button class="import-btn" bindtap="goImport">从教务系统导入</button>
+
+  <!-- 编辑/创建弹窗 -->
+  <view class="modal-mask" wx:if="{{showModal}}" bindtap="closeModal"></view>
+  <view class="modal-popup {{showModal ? 'show' : ''}}">
+    <view class="modal-title">{{editingId ? '编辑课表' : '新建课表'}}</view>
+
+    <!-- 导入完成后自动打开时，提示用户务必设置开学日期 -->
+    <view class="import-banner" wx:if="{{fromImport}}">
+      <view class="import-banner-icon">📅</view>
+      <view class="import-banner-text">导入成功！请设置开学日期以正确显示周次</view>
+    </view>
+
+    <view class="form-group">
+      <view class="form-label">名称</view>
+      <input class="modal-input" value="{{form.name}}" data-field="name" bindinput="onFormInput" placeholder="如：大二上学期" />
+    </view>
+
+    <view class="form-group {{highlightStartDate ? 'highlight' : ''}}">
+      <view class="form-label">开学日期</view>
+      <picker mode="date" value="{{form.startDate}}" bindchange="onDateChange">
+        <view class="picker-val">{{form.startDate || '请选择'}}</view>
+      </picker>
+    </view>
+
+    <view class="form-group">
+      <view class="form-label">总周数</view>
+      <picker mode="selector" range="{{weekOptions}}" value="{{form.totalWeeks - 1}}" bindchange="onWeeksChange">
+        <view class="picker-val">{{form.totalWeeks}}周</view>
+      </picker>
+    </view>
+
+    <view class="modal-switch-row">
+      <text class="switch-label">显示周末</text>
+      <switch checked="{{form.showWeekend}}" bindchange="toggleWeekend" color="#1989fa" />
+    </view>
+
+    <view class="modal-actions">
+      <button class="modal-btn cancel" bindtap="closeModal">取消</button>
+      <button class="modal-btn confirm" bindtap="saveTimetable">保存</button>
+    </view>
+  </view>
+</view>

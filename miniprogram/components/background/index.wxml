@@ -1,0 +1,4 @@
+<!--components/background/index.wxml-->
+<view class="bg-layer" wx:if="{{bgImage}}">
+  <image class="bg-image" src="{{bgImage}}" mode="aspectFill" style="opacity: {{bgOpacity}};" />
+</view>
