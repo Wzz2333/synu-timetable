@@ -3,6 +3,7 @@
     "pages/index/index",
     "pages/course/edit/index",
     "pages/timetable/manage/index",
+    "pages/free-time/index",
     "pages/settings/index",
     "pages/profile/index",
     "pages/import/index",

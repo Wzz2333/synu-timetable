@@ -1,0 +1,101 @@
+<!--pages/free-time/index.wxml-->
+<view class="bg-layer" wx:if="{{bgImage}}">
+  <image class="bg-image" src="{{bgImage}}" mode="aspectFill" style="opacity: {{bgOpacity}};" />
+</view>
+<view class="free-page">
+  <view class="page-head">
+    <view class="head-title">{{timetableName || '空闲时段'}}</view>
+    <view class="head-sub" wx:if="{{!error}}">第 {{week}} 周 · {{todayLabel}}</view>
+    <view class="tabs">
+      <view class="tab {{tab === 'today' ? 'on' : ''}}" data-tab="today" bindtap="switchTab">今天</view>
+      <view class="tab {{tab === 'week' ? 'on' : ''}}" data-tab="week" bindtap="switchTab">本周</view>
+    </view>
+  </view>
+
+  <view class="loading" wx:if="{{loading}}">正在计算空闲时段…</view>
+
+  <view class="error-box" wx:elif="{{error}}">
+    <view class="error-text">{{error}}</view>
+    <button class="error-btn" bindtap="goManage">{{error === '还没有课表' ? '去新建课表' : '打开课表管理'}}</button>
+  </view>
+
+  <scroll-view class="body" scroll-y="true" enhanced show-scrollbar="{{false}}" wx:else>
+    <block wx:if="{{tab === 'today'}}">
+      <view class="summary-card">
+        <view class="summary-free">{{summary.freeText}}</view>
+        <view class="summary-next" wx:if="{{summary.nextText}}">{{summary.nextText}}</view>
+        <view class="summary-count" wx:if="{{summary.countText}}">{{summary.countText}}</view>
+      </view>
+
+      <block wx:if="{{todayWindows.length > 0}}">
+        <view class="section-title">推荐的空闲窗口</view>
+        <view class="window-list">
+          <view
+            class="window-item"
+            wx:for="{{todayWindows}}"
+            wx:key="timeText"
+            style="border-left-color: {{item.color}};"
+          >
+            <view class="window-line">
+              <text class="window-time">{{item.timeText}}</text>
+              <text class="window-tag" style="color: {{item.color}}; border-color: {{item.color}};">{{item.categoryLabel}}</text>
+            </view>
+            <view class="window-advice">{{item.timeOfDay}} · {{item.durationText}} · {{item.advice}}</view>
+            <view class="window-note" wx:if="{{item.mealNote}}">含 {{item.mealNote}}</view>
+          </view>
+        </view>
+      </block>
+
+      <view class="fragment-bar" wx:if="{{todayFragments.length > 0}}" bindtap="toggleFragments">
+        <text>碎片时段 {{todayFragments.length}} 段</text>
+        <text class="fragment-toggle">{{showFragments ? '收起' : '展开'}}</text>
+      </view>
+      <view class="fragment-list" wx:if="{{showFragments}}">
+        <view class="fragment-item" wx:for="{{todayFragments}}" wx:key="timeText">
+          <text>{{item.timeText}}</text>
+          <text class="fragment-desc">{{item.durationText}} · {{item.advice}}</text>
+        </view>
+      </view>
+
+      <block wx:if="{{todayMeals.length > 0}}">
+        <view class="section-title">饭点 / 休息</view>
+        <view class="meal-list">
+          <view class="meal-item" wx:for="{{todayMeals}}" wx:key="timeText">
+            <text>{{item.timeText}}</text>
+            <text class="meal-desc">{{item.durationText}}</text>
+          </view>
+        </view>
+      </block>
+
+      <view class="empty" wx:if="{{todayWindows.length === 0 && todayFragments.length === 0 && todayMeals.length === 0}}">今天没有空闲时段</view>
+    </block>
+
+    <block wx:else>
+      <view class="summary-card">
+        <view class="summary-free">本周共 {{weekFreeText}} 可用空闲</view>
+        <view class="summary-next">长时段 {{weekLongCount}} 段 · 已扣除午休和晚饭</view>
+      </view>
+
+      <view class="week-list">
+        <view class="week-row {{item.isToday ? 'today' : ''}}" wx:for="{{weekDays}}" wx:key="day">
+          <view class="week-head">
+            <text class="week-day">{{item.name}}</text>
+            <text class="week-date">{{item.monthDay}}</text>
+            <text class="week-total">{{item.freeText}}</text>
+          </view>
+          <view class="week-windows" wx:if="{{item.windows.length > 0}}">
+            <text
+              class="week-window"
+              wx:for="{{item.windows}}"
+              wx:for-item="w"
+              wx:key="timeText"
+              style="color: {{w.category === 'long' ? '#1989fa' : '#39b54a'}};"
+            >{{w.timeText}}</text>
+          </view>
+          <view class="week-empty" wx:else>没有长 / 中空闲段</view>
+        </view>
+      </view>
+      <view class="week-tip">长时段 ≥ 2 小时，中时段 1–2 小时；整周都空闲时优先用大块时间。</view>
+    </block>
+  </scroll-view>
+</view>
